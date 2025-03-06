@@ -20,6 +20,19 @@ public class MySharingClient {
     public static void main(String[] args) {
         MySharingClient client = parseArgs(args);
         client.start();
+
+        // start two clients in parallel for testing
+//        new Thread(() -> {
+//            MySharingClient client = new MySharingClient
+//                    ("localhost", 12345, "user1", "password1");
+//            client.start();
+//        }).start();
+//        new Thread(() -> {
+//            MySharingClient client = new MySharingClient
+//                    ("localhost", 12345
+//                    , "user2", "password2");
+//            client.start();
+//        }).start();
     }
 
     /**
@@ -83,6 +96,8 @@ public class MySharingClient {
             }
 
             System.out.println("[CLIENT] Autenticação bem sucedida.");
+
+            while(true){}
 
         } catch (Exception e) {
             System.err.println("[CLIENT] Erro ao conectar ao servidor: " + e.getMessage());

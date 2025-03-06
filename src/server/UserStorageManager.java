@@ -1,5 +1,7 @@
 package server;
 
+import server.models.User;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -35,13 +37,12 @@ public class UserStorageManager {
     }
 
     /**
-     * Load the users from the file.
+     * Gets a user from the file.
      *
-     * @return the users
+     * @param userId the user ID
+     * @return the user, or null if the user does not exist
      */
-    public Map<String, String> loadUsers() {
-        Map<String, String> users = new HashMap<>();
-
+    public User getUser(String userId) {
         try (Scanner scanner = new Scanner(new File(usersFilePath))) {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
@@ -52,13 +53,18 @@ public class UserStorageManager {
                     continue;
                 }
 
-                users.put(parts[0].trim(), parts[1].trim());
+                String username = parts[0];
+                String password = parts[1];
+
+                if (username.equals(userId)) {
+                    return new User(userId, password);
+                }
             }
         } catch (IOException e) {
             System.err.println("[USER STORAGE] Erro ao carregar usuários: " + e.getMessage());
         }
 
-        return users;
+        return null;
     }
 
     /**
@@ -69,9 +75,7 @@ public class UserStorageManager {
      * @return true if the user was added, false otherwise
      */
     public boolean addUser(String user, String password) {
-        Map<String, String> users = loadUsers();
-
-        if (users.containsKey(user)) {
+        if (this.getUser(user) != null) {
             System.err.println("[USER STORAGE] Usuário já existe: " + user);
 
             return false;
