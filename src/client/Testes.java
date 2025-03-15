@@ -109,7 +109,7 @@ public class Testes {
 //        BodyJSON workspaceRequest = new BodyJSON();
 //        workspaceRequest.put("action", "attachFile");
 //        workspaceRequest.put("workspaceId", "workspace123");
-//        workspaceRequest.put("tempFileId", tempFileId);
+//        workspaceRequest.put("fileId", tempFileId);
 //        workspaceRequest.put("fileName", file.getName());
 //
 //        Request request3 = new Request(

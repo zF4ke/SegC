@@ -8,16 +8,17 @@ import java.net.Socket;
 
 public class ClientRouter {
     private final Socket socket;
+    private final DataInputStream in;
+    private final DataOutputStream out;
 
-    public ClientRouter(Socket clientSocket) {
-        this.socket = clientSocket;
+    public ClientRouter(DataInputStream in, DataOutputStream out, Socket socket) {
+        this.socket = socket;
+        this.in = in;
+        this.out = out;
     }
 
     public void handleResponses() {
-        try (
-            DataInputStream in = new DataInputStream(socket.getInputStream());
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream())
-        ) {
+        try {
             Response response = Response.fromStream(in);
             System.out.println("[CLIENT] Resposta recebida: " + response);
 

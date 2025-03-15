@@ -2,6 +2,7 @@ package server;
 
 import client.ClientRouter;
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 import java.io.*;
@@ -44,6 +45,9 @@ public class ClientHandler extends Thread {
         router.handleRequests();
     }
 
+    /**
+     * Open the input and output streams.
+     */
     private void openStreams() {
         try {
             this.in = new DataInputStream(clientSocket.getInputStream());
@@ -71,19 +75,24 @@ public class ClientHandler extends Thread {
             }
 
             BodyJSON json = (BodyJSON) body;
-            String userid = json.get("userid");
+            String userId = json.get("userId");
             String password = json.get("password");
 
-            //System.out.println(request);
-            System.out.println("[SERVER] Autenticar cliente: " + userid);
+            if (!InputUtils.isValidUsernameAndPassword(userId, password)) {
+                this.createErrorAuthResponse(StatusCodes.BAD_REQUEST);
+                return false;
+            }
 
-            int status = authManager.authenticate(userid, password);
+            //System.out.println(request);
+            System.out.println("[SERVER] Autenticar cliente: " + userId);
+
+            int status = authManager.authenticate(userId, password);
             if (status != StatusCodes.OK) {
                 this.createErrorAuthResponse(status);
                 return false;
             }
 
-            this.authenticatedUser = authManager.getUser(userid);
+            this.authenticatedUser = authManager.getUser(userId);
 
             Response response = new Response(request.getUUID(), BodyFormat.JSON, status, new BodyJSON());
             //System.out.println(response);

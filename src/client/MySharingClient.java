@@ -1,6 +1,7 @@
 package client;
 
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 import java.io.*;
@@ -98,12 +99,36 @@ public class MySharingClient {
         }
     }
 
+    /**
+     * Open the input and output streams.
+     */
+    private void openStreams() {
+        try {
+            this.in = new DataInputStream(socket.getInputStream());
+            this.out = new DataOutputStream(socket.getOutputStream());
+
+            System.out.println("[SERVER] Streams abertas.");
+        } catch (IOException e) {
+            System.err.println("[SERVER] Erro ao abrir streams: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Authenticate the user.
+     *
+     * @return true if the user is authenticated, false otherwise
+     */
     public boolean authenticateUser() {
         try {
             System.out.println("[CLIENT] Autenticando utilizador...");
 
+            if (!InputUtils.isValidUsernameAndPassword(userId, password)) {
+                System.err.println("[CLIENT] Utilizador ou password tem caracteres inválidos.");
+                return false;
+            }
+
             BodyJSON body = new BodyJSON();
-            body.put("userid", userId);
+            body.put("userId", userId);
             body.put("password", password);
 
             Request request = new Request(
