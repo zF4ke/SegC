@@ -5,14 +5,14 @@ import server.models.User;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Scanner;
 
 /**
  * A class to manage the users file.
  */
 public class UserStorageManager {
+    private static UserStorageManager INSTANCE;
+    private static final String USERS_FILE_PATH = "data/users.txt";
     private final String usersFilePath;
 
     /**
@@ -20,10 +20,16 @@ public class UserStorageManager {
      *
      * @param usersFilePath the path to the users file
      */
-    public UserStorageManager(String usersFilePath) {
+    private UserStorageManager(String usersFilePath) {
         this.usersFilePath = usersFilePath;
 
         File file = new File(usersFilePath);
+        File directory = file.getParentFile();
+        if (directory != null && !directory.exists()) {
+            if (!directory.mkdirs()) {
+                System.err.println("[USER STORAGE] Erro ao criar diretório de dados: " + directory.getAbsolutePath());
+            }
+        }
         if (!file.exists()) {
             try {
                 boolean result = file.createNewFile();
@@ -34,6 +40,19 @@ public class UserStorageManager {
                 System.err.println("[USER STORAGE] Erro ao criar arquivo de usuários: " + e.getMessage());
             }
         }
+    }
+
+    /**
+     * Get the instance of the user storage manager.
+     *
+     * @return the instance
+     */
+    public synchronized static UserStorageManager getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new UserStorageManager(USERS_FILE_PATH);
+        }
+
+        return INSTANCE;
     }
 
     /**

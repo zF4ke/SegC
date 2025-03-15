@@ -1,4 +1,0 @@
-simao:1235
-simao2:1235
-user2:password2
-user1:password1

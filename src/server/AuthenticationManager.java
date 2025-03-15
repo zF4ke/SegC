@@ -2,29 +2,27 @@ package server;
 
 import server.models.User;
 
-import java.util.Map;
-
 public class AuthenticationManager {
-    private static AuthenticationManager INSTANCE;
-    private static final String USERS_FILE_PATH = "users.txt";
+    public static AuthenticationManager INSTANCE;
     private final UserStorageManager userStorageManager;
 
     /**
-     * Get the instance of the authentication manager.
+     * Create a new authentication manager.
      */
     private AuthenticationManager() {
-        this.userStorageManager = new UserStorageManager(USERS_FILE_PATH);
+        this.userStorageManager = UserStorageManager.getInstance();
     }
 
     /**
-     * Get the singleton instance of AuthenticationManager.
+     * Get the instance of the authentication manager.
      *
-     * @return The singleton instance.
+     * @return the instance
      */
-    public static synchronized AuthenticationManager getInstance() {
+    public synchronized static AuthenticationManager getInstance() {
         if (INSTANCE == null) {
             INSTANCE = new AuthenticationManager();
         }
+
         return INSTANCE;
     }
 

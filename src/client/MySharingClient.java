@@ -1,9 +1,12 @@
 package client;
 
 import server.ServerResponse;
+import server.models.*;
+import server.utils.NetworkUtils;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.Arrays;
 
 /**
  * The client class.
@@ -16,23 +19,12 @@ public class MySharingClient {
     private final String password;
 
     private Socket socket;
+    private DataInputStream in;
+    private DataOutputStream out;
 
     public static void main(String[] args) {
         MySharingClient client = parseArgs(args);
         client.start();
-
-        // start two clients in parallel for testing
-//        new Thread(() -> {
-//            MySharingClient client = new MySharingClient
-//                    ("localhost", 12345, "user1", "password1");
-//            client.start();
-//        }).start();
-//        new Thread(() -> {
-//            MySharingClient client = new MySharingClient
-//                    ("localhost", 12345
-//                    , "user2", "password2");
-//            client.start();
-//        }).start();
     }
 
     /**
@@ -87,6 +79,8 @@ public class MySharingClient {
     public void start() {
         try {
             socket = new Socket(serverAddress, port);
+            in = new DataInputStream(socket.getInputStream());
+            out = new DataOutputStream(socket.getOutputStream());
 
             System.out.println("[CLIENT] Conectado ao servidor " + serverAddress + ":" + port);
 
@@ -97,6 +91,53 @@ public class MySharingClient {
 
             System.out.println("[CLIENT] Autenticação bem sucedida.");
 
+            /* ============================================================================= */
+            /* TESTE DE ENVIO DE REQUEST JSON */
+            /* ============================================================================= */
+            BodyJSON body = new BodyJSON();
+            body.put("username", userId);
+            body.put("password", password);
+
+            Request request = new Request(
+                    NetworkUtils.randomUUID(),
+                    BodyFormat.JSON,
+                    "authenticate",
+                    body
+            );
+
+            System.out.println("[CLIENT] A enviar request: " + request);
+
+            out.write(request.toByteArray());
+
+            Response response = Response.fromStream(in);
+            System.out.println(response);
+            /* ============================================================================= */
+            /* FIM DO TESTE JSON */
+            /* ============================================================================= */
+
+            /* ============================================================================= */
+            /* TESTE DE ENVIO DE REQUEST RAW */
+            /* ============================================================================= */
+            BodyRaw braw = new BodyRaw(new byte[] { 0x01, 0x02, 0x03, 0x04 });
+
+            Request request2 = new Request(
+                    NetworkUtils.randomUUID(),
+                    BodyFormat.RAW,
+                    "b",
+                    braw
+            );
+
+            System.out.println("[CLIENT] A enviar request: " + request2);
+
+            out.write(request2.toByteArray());
+
+            Response response2 = Response.fromStream(in);
+            System.out.println(response2); // É suposto dar erro, porque não existe rota "b", mas os dados devem ser enviados corretamente
+            /* ============================================================================= */
+            /* FIM DO TESTE RAW */
+            /* ============================================================================= */
+
+
             while(true){}
 
         } catch (Exception e) {
@@ -106,14 +147,15 @@ public class MySharingClient {
 
     public ServerResponse authenticateUser() {
         try {
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            in = new DataInputStream(socket.getInputStream());
+            out = new DataOutputStream(socket.getOutputStream());
 
-            out.println(userId + " " + password);
+            out.writeUTF(userId + " " + password);
+            out.flush();
 
             System.out.println("[CLIENT] Utilizador: \"" + userId + "\" e password: \"" + password + "\" enviados.");
 
-            String response = in.readLine();
+            String response = in.readUTF();
             ServerResponse serverResponse = ServerResponse.valueOf(response);
 
             System.out.println("[CLIENT] Autenticação: " + serverResponse);
