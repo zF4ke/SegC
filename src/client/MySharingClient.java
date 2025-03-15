@@ -1,12 +1,10 @@
 package client;
 
-import server.ServerResponse;
 import server.models.*;
 import server.utils.NetworkUtils;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.Arrays;
 
 /**
  * The client class.
@@ -84,18 +82,28 @@ public class MySharingClient {
 
             System.out.println("[CLIENT] Conectado ao servidor " + serverAddress + ":" + port);
 
-            if (authenticateUser() != ServerResponse.OK) {
+            if (!authenticateUser()) {
                 System.err.println("[CLIENT] Autenticação falhou.");
                 stop();
+                return;
             }
 
             System.out.println("[CLIENT] Autenticação bem sucedida.");
 
-            /* ============================================================================= */
-            /* TESTE DE ENVIO DE REQUEST JSON */
-            /* ============================================================================= */
+            // APAGAR DEPOIS
+            //Testes.tests(in, out);
+
+        } catch (Exception e) {
+            System.err.println("[CLIENT] Erro ao conectar ao servidor: " + e.getMessage());
+        }
+    }
+
+    public boolean authenticateUser() {
+        try {
+            System.out.println("[CLIENT] Autenticando utilizador...");
+
             BodyJSON body = new BodyJSON();
-            body.put("username", userId);
+            body.put("userid", userId);
             body.put("password", password);
 
             Request request = new Request(
@@ -105,67 +113,16 @@ public class MySharingClient {
                     body
             );
 
-            System.out.println("[CLIENT] A enviar request: " + request);
-
-            out.write(request.toByteArray());
+            this.out.write(request.toByteArray());
 
             Response response = Response.fromStream(in);
-            System.out.println(response);
-            /* ============================================================================= */
-            /* FIM DO TESTE JSON */
-            /* ============================================================================= */
+            return response.getStatus() == StatusCodes.OK;
 
-            /* ============================================================================= */
-            /* TESTE DE ENVIO DE REQUEST RAW */
-            /* ============================================================================= */
-            BodyRaw braw = new BodyRaw(new byte[] { 0x01, 0x02, 0x03, 0x04 });
-
-            Request request2 = new Request(
-                    NetworkUtils.randomUUID(),
-                    BodyFormat.RAW,
-                    "b",
-                    braw
-            );
-
-            System.out.println("[CLIENT] A enviar request: " + request2);
-
-            out.write(request2.toByteArray());
-
-            Response response2 = Response.fromStream(in);
-            System.out.println(response2); // É suposto dar erro, porque não existe rota "b", mas os dados devem ser enviados corretamente
-            /* ============================================================================= */
-            /* FIM DO TESTE RAW */
-            /* ============================================================================= */
-
-
-            while(true){}
-
-        } catch (Exception e) {
-            System.err.println("[CLIENT] Erro ao conectar ao servidor: " + e.getMessage());
-        }
-    }
-
-    public ServerResponse authenticateUser() {
-        try {
-            in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
-
-            out.writeUTF(userId + " " + password);
-            out.flush();
-
-            System.out.println("[CLIENT] Utilizador: \"" + userId + "\" e password: \"" + password + "\" enviados.");
-
-            String response = in.readUTF();
-            ServerResponse serverResponse = ServerResponse.valueOf(response);
-
-            System.out.println("[CLIENT] Autenticação: " + serverResponse);
-
-            return serverResponse;
         } catch (Exception e) {
             System.err.println("[CLIENT] Erro ao autenticar utilizador: " + e.getMessage());
         }
 
-        return ServerResponse.ERROR;
+        return false;
     }
 
     /**

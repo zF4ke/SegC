@@ -1,5 +1,7 @@
 package server;
 
+import server.models.Response;
+import server.models.StatusCodes;
 import server.models.User;
 
 public class AuthenticationManager {
@@ -36,17 +38,17 @@ public class AuthenticationManager {
      * @param password the user password
      * @return the server response
      */
-    public ServerResponse authenticate(String userId, String password) {
+    public int authenticate(String userId, String password) {
         if (this.getUser(userId) == null) {
             if (this.addUser(userId, password)) {
-                return ServerResponse.OK;
+                return StatusCodes.OK;
             } else {
-                return ServerResponse.ERROR;
+                return StatusCodes.INTERNAL_SERVER_ERROR;
             }
         } else if (this.checkPassword(userId, password)) {
-            return ServerResponse.OK;
+            return StatusCodes.OK;
         } else {
-            return ServerResponse.INVALID_AUTH;
+            return StatusCodes.INVALID_AUTH;
         }
     }
 

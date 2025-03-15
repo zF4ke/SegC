@@ -92,4 +92,14 @@ public class BodyJSON extends Body {
     public BodyFormat getFormat() {
         return BodyFormat.JSON;
     }
+
+    /**
+     * Checks if the JSON body contains the given key.
+     *
+     * @param message the key
+     * @return true if the key exists, false otherwise
+     */
+    public boolean containsKey(String message) {
+        return data.containsKey(message);
+    }
 }

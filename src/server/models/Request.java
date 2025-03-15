@@ -8,6 +8,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Represents a request.
@@ -17,6 +19,7 @@ public class Request {
     private final BodyFormat format;
     private final String route;
     private final Body body;
+    private final Map<String, String> headers;
 
     /**
      * Creates a new request.
@@ -31,7 +34,7 @@ public class Request {
             throw new InvalidRequestException("UUID inválido: " + uuid);
         }
         // Regex: A rota só pode conter letras e números
-        if (route == null || !route.matches("^[a-zA-Z0-9]+$") || route.isBlank()) {
+        if (route == null || route.isBlank() || !route.matches("^[a-zA-Z0-9]+$")) {
             throw new InvalidRequestException("Rota inválida: " + route);
         }
         if (body == null) {
@@ -42,6 +45,24 @@ public class Request {
         this.format = format;
         this.route = route;
         this.body = body;
+        this.headers = new HashMap<>();
+    }
+
+    /**
+     * Adds a header to the request.
+     *
+     * @param key Header key
+     * @param value Header value
+     * @return this request for chaining
+     */
+    public Request addHeader(String key, String value) {
+        if (key.isBlank() || value.isBlank() || !isValidHeader(key) || !isValidHeader(value)) {
+            throw new InvalidRequestException("Header inválido");
+        }
+        // replace if already exists
+        headers.put(key, value);
+
+        return this;
     }
 
     /**
@@ -50,7 +71,14 @@ public class Request {
      * @return the size
      */
     public int getSize() {
-        return RequestConstants.HEADER_LENGTH + route.getBytes(StandardCharsets.UTF_8).length + 2 + body.getSize();
+        int headersSize = 0;
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            // Para cada: "KEY: VALUE\n"
+            headersSize += entry.getKey().length() + 2 + entry.getValue().length() + 1;
+        }
+
+        return RequestConstants.HEADER_LENGTH + headersSize +
+                route.getBytes(StandardCharsets.UTF_8).length + 2 + body.getSize();
     }
 
     /**
@@ -90,6 +118,35 @@ public class Request {
     }
 
     /**
+     * Gets a header value.
+     *
+     * @param key Header key
+     * @return Header value or null if not found
+     */
+    public String getHeader(String key) {
+        return headers.get(key);
+    }
+
+    /**
+     * Checks if a header exists.
+     *
+     * @param key Header key
+     * @return true if the header exists, false otherwise
+     */
+    public boolean hasHeader(String key) {
+        return headers.containsKey(key);
+    }
+
+    /**
+     * Gets all headers.
+     *
+     * @return Map of headers
+     */
+    public Map<String, String> getHeaders() {
+        return Map.copyOf(headers);  // Return an unmodifiable copy
+    }
+
+    /**
      * Reads a request from the input stream.
      *
      * @param in the input stream
@@ -112,39 +169,58 @@ public class Request {
         byte[] contentBytes = new byte[size - RequestConstants.HEADER_LENGTH];
         in.readFully(contentBytes);
 
+        int separatorPos = findSeparatorPosition(contentBytes);
+        if (separatorPos == -1) {
+            throw new InvalidRequestException("Formato inválido: separador não encontrado");
+        }
+
+        // Headers e a rota estão antes do separador
+        String headersAndRoute = new String(contentBytes, 0, separatorPos, StandardCharsets.UTF_8);
+        String[] lines = headersAndRoute.split("\n");
+
+        // A ultima linha sem : é a rota
+        String route = "";
+        Map<String, String> headers = new HashMap<>();
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty()) continue;
+
+            int colonIndex = line.indexOf(":");
+
+            if (colonIndex > 0) { // header
+                String key = line.substring(0, colonIndex).trim();
+                String value = line.substring(colonIndex + 1).trim();
+                headers.put(key, value);
+            } else { // rota
+                route = line;
+            }
+        }
+
+        Body body;
+        // Extrai o corpo da requisição com base no formato
         if (format == BodyFormat.JSON) {
-            String rawRequest = new String(contentBytes, StandardCharsets.UTF_8).trim();
-            String[] parts = rawRequest.split("\n\n", 2);
-
-            if (parts.length != 2) {
-                throw new InvalidRequestException("Corpo inválido: " + rawRequest);
-            }
-
-            String route = parts[0].trim();
-            Body body = BodyJSON.fromMap(JSONParser.deserialize(parts[1]));
-            return new Request(uuid, format, route, body);
+            int bodyStart = separatorPos + 2;
+            String bodyJson = new String(contentBytes, bodyStart, contentBytes.length - bodyStart, StandardCharsets.UTF_8);
+            body = BodyJSON.fromMap(JSONParser.deserialize(bodyJson));
         } else if (format == BodyFormat.RAW) {
-            // Para o formato RAW, encontra a primeira dupla quebra de linha para separar a rota dos dados binários
-            int separatorPos = findSeparatorPosition(contentBytes);
-            if (separatorPos == -1) {
-                throw new InvalidRequestException("Formato RAW inválido: separador não encontrado");
-            }
-
-            // Extrai a rota (converte apenas a parte da rota para String)
-            String route = new String(contentBytes, 0, separatorPos, StandardCharsets.UTF_8).trim();
-
-            // Extrai a parte do corpo (dados binários) a partir da posição do separador
             int bodyStart = separatorPos + 2;
             int bodyLength = contentBytes.length - bodyStart;
             byte[] bodyData = new byte[bodyLength];
             System.arraycopy(contentBytes, bodyStart, bodyData, 0, bodyLength);
-
-            Body body = new BodyRaw(bodyData);
-            return new Request(uuid, format, route, body);
-        }
-        else {
+            body = new BodyRaw(bodyData);
+        } else {
             throw new InvalidRequestException("Formato inválido: " + format);
         }
+
+        Request request = new Request(uuid, format, route, body);
+
+        // Adiciona os headers ao request
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            request.addHeader(header.getKey(), header.getValue());
+        }
+
+        return request;
     }
 
     /**
@@ -167,14 +243,23 @@ public class Request {
             throw new InvalidRequestException("Corpo inválido: " + body);
         }
 
-        String routePart = this.route + "\n\n";
+        // Cria uma string com os headers
+        StringBuilder headersBuilder = new StringBuilder();
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            headersBuilder.append(entry.getKey())
+                    .append(": ")
+                    .append(entry.getValue())
+                    .append("\n");
+        }
+
+        String routePart = headersBuilder.toString() + route + "\n\n";
         byte[] routeBytes = routePart.getBytes(StandardCharsets.UTF_8);
 
         ByteBuffer buffer = ByteBuffer.allocate(this.getSize());
         buffer.putInt(this.getSize()); // Size
         buffer.put(uuid.getBytes(StandardCharsets.UTF_8)); // UUID
         buffer.put(format.toString().getBytes(StandardCharsets.UTF_8)); // Format
-        buffer.put(routeBytes); // Route with separators
+        buffer.put(routeBytes); // Headers + Route com separadores
         buffer.put(bodyBytes); // Body
 
         return buffer.array();
@@ -196,33 +281,48 @@ public class Request {
         return -1;
     }
 
+    /**
+     * Checks if a string is a valid header key or value.
+     *
+     * @param s the string
+     * @return true if valid, false otherwise
+     */
+    private boolean isValidHeader(String s) {
+        return s.matches("^[a-zA-Z0-9-]+$");
+    }
 
     @Override
     public String toString() {
         int size = this.getSize();
 
-//        return "Request{" +
-//                "size=" + size +
-//                ", uuid='" + uuid + '\'' +
-//                ", format=" + format +
-//                ", route='" + route + '\'' +
-//                ", body=" + body +
-//                '}';
+        StringBuilder sb = new StringBuilder();
+        sb.append("Request{\n");
+        sb.append("    \"size\": ").append(size).append("\n");
+        sb.append("    \"uuid\": \"").append(uuid).append("\"\n");
+        sb.append("    \"format\": ").append(format).append("\n");
+        sb.append("    \"route\": \"").append(route).append("\"\n");
 
-        return "Request{\n" +
-                "    \"size\": " + size + "\n" +
-                "    \"uuid\": \"" + uuid + "\"\n" +
-                "    \"format\": " + format + "\n" +
-                "    \"route\": \"" + route + "\"\n" +
-                "    \"body\": " + body + "\n" +
-                "}";
+        if (!headers.isEmpty()) {
+            sb.append("    \"headers\": {\n");
+            for (Map.Entry<String, String> entry : headers.entrySet()) {
+                sb.append("        \"").append(entry.getKey()).append("\": \"")
+                        .append(entry.getValue()).append("\",\n");
+            }
+            sb.append("    },\n");
+        }
+
+        sb.append("    \"body\": ").append(body).append("\n");
+        sb.append("}");
+
+        return sb.toString();
     }
 }
 
 //REQUEST
 //-------------------------------------------
 //size[4 bytes] uuid[4 bytes] format[4 bytes]
-//
+//HEADER-1: VALUE1
+//HEADER-2: VALUE2
 ///getworkspacefiles
 //
 //{

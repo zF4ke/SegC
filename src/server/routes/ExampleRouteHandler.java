@@ -1,14 +1,15 @@
 package server.routes;
 
 import server.models.*;
+import server.utils.NetworkUtils;
 
-public class AuthenticateUserHandler implements RouteHandler {
+public class ExampleRouteHandler implements RouteHandler {
 
     @Override
     public Response handle(Request request) {
         Body body = request.getBody();
         if (body.getFormat() != BodyFormat.JSON) {
-            return new Response(request.getUUID(), BodyFormat.JSON, StatusCodes.BAD_REQUEST, null);
+            return NetworkUtils.createErrorResponse(request, "Request inválido");
         }
 
         BodyJSON json = (BodyJSON) request.getBody();

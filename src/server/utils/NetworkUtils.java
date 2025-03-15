@@ -1,5 +1,7 @@
 package server.utils;
 
+import server.models.*;
+
 public class NetworkUtils {
     /**
      * Convert byte array to integer.
@@ -33,5 +35,24 @@ public class NetworkUtils {
      */
     public static String randomUUID() {
         return java.util.UUID.randomUUID().toString();
+    }
+
+    /**
+     * Creates a response with an error message.
+     *
+     * @param request the request
+     * @param errorMessage the error message
+     * @return the response
+     */
+    public static Response createErrorResponse(Request request, String errorMessage) {
+        BodyJSON body = new BodyJSON();
+        body.put("error", errorMessage);
+
+        return new Response(
+                request.getUUID(),
+                BodyFormat.JSON,
+                StatusCodes.BAD_REQUEST,
+                body
+        );
     }
 }

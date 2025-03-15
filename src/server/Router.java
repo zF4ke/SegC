@@ -1,7 +1,8 @@
 package server;
 
 import server.models.*;
-import server.routes.AuthenticateUserHandler;
+import server.routes.ExampleRouteHandler;
+import server.routes.FileUploadHandler;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -16,9 +17,9 @@ public class Router {
 
     public Router(Socket clientSocket, DataInputStream in, DataOutputStream out, User authenticatedUser) {
         this.clientSocket = clientSocket;
+        this.authenticatedUser = authenticatedUser;
         this.in = in;
         this.out = out;
-        this.authenticatedUser = authenticatedUser;
     }
 
     public void handleRequests() {
@@ -26,9 +27,9 @@ public class Router {
 
         try {
             while (!clientSocket.isClosed()) {
-                Request request = null;
                 try {
-                    request = Request.fromStream(in);
+                    Request request = Request.fromStream(in);
+                    request.addHeader("USER-ID", authenticatedUser.getUserId());
 
                     System.out.println("[ROUTER] Request recebido de " + authenticatedUser.getUserId() + ": " + request);
 
@@ -53,8 +54,12 @@ public class Router {
      */
     private static Response handleRequest(Request request) {
         switch (request.getRoute()) {
-            case "authenticate":
-                return new AuthenticateUserHandler().handle(request);
+            case "example":
+                return new ExampleRouteHandler().handle(request);
+            case "fileupload":
+                return new FileUploadHandler().handle(request);
+//            case "uploadWorkspace":
+//                return new UploadWorkspaceHandler().handle(request);
             default:
                 BodyJSON body = new BodyJSON();
                 body.put("error", "Rota não encontrada");

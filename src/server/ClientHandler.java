@@ -1,7 +1,8 @@
 package server;
 
 import client.ClientRouter;
-import server.models.User;
+import server.models.*;
+import server.utils.NetworkUtils;
 
 import java.io.*;
 import java.net.Socket;
@@ -61,27 +62,34 @@ public class ClientHandler extends Thread {
      */
     private boolean authenticateClient() {
         try {
-            String credentials = in.readUTF();
-            if (!credentials.contains(" ")) {
-                out.writeUTF(ServerResponse.INVALID_AUTH.toString());
-                out.flush();
+            Request request = Request.fromStream(in);
+            Body body = request.getBody();
+
+            if (body.getFormat() != BodyFormat.JSON) {
+                this.createErrorAuthResponse(StatusCodes.BAD_REQUEST);
                 return false;
             }
 
-            String[] parts = credentials.split(" ");
-            String userId = parts[0];
-            String password = parts[1];
+            BodyJSON json = (BodyJSON) body;
+            String userid = json.get("userid");
+            String password = json.get("password");
 
-            ServerResponse response = authManager.authenticate(userId, password);
-            out.writeUTF(response.toString());
-            out.flush();
+            //System.out.println(request);
+            System.out.println("[SERVER] Autenticar cliente: " + userid);
 
-            if (response == ServerResponse.OK) {
-                this.authenticatedUser = authManager.getUser(userId);
-                System.out.println("[SERVER] Cliente autenticado: " + this.authenticatedUser);
-                return true;
+            int status = authManager.authenticate(userid, password);
+            if (status != StatusCodes.OK) {
+                this.createErrorAuthResponse(status);
+                return false;
             }
 
+            this.authenticatedUser = authManager.getUser(userid);
+
+            Response response = new Response(request.getUUID(), BodyFormat.JSON, status, new BodyJSON());
+            //System.out.println(response);
+            this.out.write(response.toByteArray());
+
+            return true;
         } catch (Exception e) {
             System.err.println("[SERVER] Erro ao autenticar cliente: " + e.getMessage());
         }
@@ -89,8 +97,13 @@ public class ClientHandler extends Thread {
         return false;
     }
 
-    public User getAuthenticatedUser() {
-        return authenticatedUser;
+    private void createErrorAuthResponse(int status) {
+        try {
+            Response response = new Response(NetworkUtils.randomUUID(), BodyFormat.JSON, status, new BodyJSON());
+            this.out.write(response.toByteArray());
+        } catch (IOException e) {
+            System.err.println("[SERVER] Erro ao criar resposta de autenticação: " + e.getMessage());
+        }
     }
 
     private void closeSocket() {
