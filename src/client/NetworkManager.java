@@ -31,7 +31,7 @@ public class NetworkManager {
             out.write(request.toByteArray());
 
             Response response = Response.fromStream(in);
-            System.out.println("[CLIENT] Resposta recebida do servidor: " + response);
+            System.out.println("[CLIENT] Resposta recebida do servidor: " + response.getStatus());
 
         } catch (IOException e) {
             System.err.println("[CLIENT] Erro ao criar workspace: " + e.getMessage());
