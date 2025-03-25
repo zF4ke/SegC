@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import server.models.Workspace;
 
 /*
 * workspaces.txt example:
@@ -124,7 +125,7 @@ public class FileStorageManager {
     public boolean [] removeFiles(String workspace, String[] fileNames) {
         boolean[] filesRemoved = new boolean[fileNames.length];
         for (int i = 0; i < fileNames.length; i++) {
-            File file = new File(fileNames[i]);
+            File file = new File(workspace + fileNames[i]);
             filesRemoved[i] = file.delete();
         }
         
@@ -136,12 +137,9 @@ public class FileStorageManager {
             List<String> list = new ArrayList<>();
 
             while(scanner.hasNextLine()) {
-                String[] line = scanner.nextLine().split(":");
-                if (line.length != 3) {
-                    throw new IOException();
-                }
-                if (isUserInLine(line[3], username)){
-                    list.add(line[0]);
+                Workspace w = createWorkspace(scanner.nextLine());
+                if (w.isMember(username)){
+                    list.add(w.getName());
                 }
             }
             return list.toArray(String[]:: new);
@@ -159,9 +157,10 @@ public class FileStorageManager {
     public String[] listFiles(String workspace) {
         try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
             while (scanner.hasNextLine()) { 
-                String[] line = scanner.nextLine().split(":");
-                if (line.length < 2 && line[0].equals(workspace) ){
-                    return line[3].split(",");
+                Workspace w = createWorkspace(scanner.nextLine());
+                if ( w.getName().equals(workspace) ){
+                    File dir = new File(WORKSPACES_DIR_PATH + workspace);
+                    return dir.list();
                 }
             }
 
@@ -179,35 +178,30 @@ public class FileStorageManager {
     }
     
     public boolean isUserInWorkspace(String username, String workspace) {
-        //TODO apagar
-        //Nota: inicialmente tinha feito com line.contains(), era mais simples mas vulneravel a ataques, username podia ser parte de outro
-        // etc
+        
         try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
             while (scanner.hasNextLine()) { 
-                String[] line = scanner.nextLine().split(":");
-                if (line.length != 3) {
-                    throw new IOException(); 
-                }
-                if (line[0].equals(workspace) && isUserInLine(line[3], username)){
+                Workspace w = createWorkspace(scanner.nextLine());
+                if (w.getName().equals(workspace) && w.isMember(username)){
                     return true;
                 }
             }
 
         } catch (FileNotFoundException e) {
             e.printStackTrace();
-        } catch (IOException e) {
-            System.out.println("Invalid format off workspace");
-            e.printStackTrace();
-        }
+        } 
         
         return false;
     }
 
-    public boolean isUserOwner(String username, String workspace) {
+    public boolean isUserOwner(String ownerUsername, String workspace) {
         try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
             while (scanner.hasNextLine()) { 
-                String[] line = scanner.nextLine().split(":");
-                if (line.length < 2 && line[0].equals(workspace) && line[1].equals(username)){
+                Workspace w = createWorkspace(scanner.nextLine());
+                if (w == null) {
+                    return false;
+                } 
+                if (w.getName().equals(workspace) && w.getOwnerUsername().equals(ownerUsername)){
                     return true;
                 }
             }
@@ -215,19 +209,25 @@ public class FileStorageManager {
         } catch (FileNotFoundException e) {
             e.printStackTrace();
             return false;
-        }
+        } 
         return false;
     }
-    
 
-    private boolean isUserInLine(String line, String username) {
-        for (String user : line.split(",")) {
-            if (user.equals(username)) {
-                return true;
+
+    private Workspace createWorkspace(String line) {
+        try {
+            String[] lineSplit = line.split(":");
+            if (lineSplit.length != 3) {
+                throw new IOException(); 
             }
+            else {
+            return new Workspace(lineSplit[0], lineSplit[1], java.util.Arrays.asList(lineSplit[2].split(",")));
+            }
+        } catch (IOException e) {
+            System.out.println("[WORKSPACE INVALID FORMAT] Erro ao ler worksapces " + e.getMessage());
+            return null;
         }
 
-        return false;
     }
 
 }
