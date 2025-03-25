@@ -4,6 +4,7 @@ import server.models.User;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Scanner;
 
@@ -13,17 +14,12 @@ import java.util.Scanner;
 public class UserStorageManager {
     private static UserStorageManager INSTANCE;
     private static final String USERS_FILE_PATH = "data/users.txt";
-    private final String usersFilePath;
 
     /**
      * Create a new user storage manager.
-     *
-     * @param usersFilePath the path to the users file
      */
-    private UserStorageManager(String usersFilePath) {
-        this.usersFilePath = usersFilePath;
-
-        File file = new File(usersFilePath);
+    private UserStorageManager() {
+        File file = new File(USERS_FILE_PATH);
         File directory = file.getParentFile();
         if (directory != null && !directory.exists()) {
             if (!directory.mkdirs()) {
@@ -49,7 +45,7 @@ public class UserStorageManager {
      */
     public synchronized static UserStorageManager getInstance() {
         if (INSTANCE == null) {
-            INSTANCE = new UserStorageManager(USERS_FILE_PATH);
+            INSTANCE = new UserStorageManager();
         }
 
         return INSTANCE;
@@ -62,7 +58,7 @@ public class UserStorageManager {
      * @return the user, or null if the user does not exist
      */
     public User getUser(String userId) {
-        try (Scanner scanner = new Scanner(new File(usersFilePath))) {
+        try (Scanner scanner = new Scanner(new File(USERS_FILE_PATH))) {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
                 String[] parts = line.split(":");
@@ -100,7 +96,7 @@ public class UserStorageManager {
             return false;
         }
 
-        try (BufferedWriter writer = new BufferedWriter(new java.io.FileWriter(usersFilePath, true))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE_PATH, true))) {
             writer.write(user + ":" + password);
             writer.newLine();
 

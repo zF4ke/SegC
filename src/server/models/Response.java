@@ -149,14 +149,6 @@ public class Response {
     public String toString() {
         int size = getSize();
 
-//        return "Response{" +
-//                "size=" + size +
-//                ", uuid='" + uuid + '\'' +
-//                ", format=" + format +
-//                ", status=" + status +
-//                ", body=" + body +
-//                '}';
-
         return "Response{\n" +
                 "    \"size\": " + size + "\n" +
                 "    \"uuid\": \"" + uuid + "\"\n" +

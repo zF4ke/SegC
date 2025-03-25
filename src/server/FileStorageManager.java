@@ -21,42 +21,46 @@ import java.util.Scanner;
 */
 
 public class FileStorageManager {
-
-    private static FileStorageManager Instance;
+    private static FileStorageManager INSTANCE;
+    private final String DATA_DIR_PATH = "data/";
     private final String WORKSPACES_FILE_PATH = "data/workspaces.txt";
-    private final String DATA_DIR_PATH = "src/server/data/";
-    private final String WORKSPACES_DIR_PATH = "src/server/data/workspaces/";
+    private final String WORKSPACES_DIR_PATH = "data/workspaces/";
 
-
+    /**
+     * Create a new file storage manager.
+     */
     private FileStorageManager() {
         try {
-            //create a dir for the data if it doesnt exist already
-            if (!Files.exists(Paths.get(DATA_DIR_PATH))) {
-                new File(DATA_DIR_PATH).mkdirs();
-            }
-            //create a dir for workspaces inside of data inside of server: src/server/data/workspaces
-            if (!Files.exists(Paths.get(WORKSPACES_DIR_PATH))) {
-                new File(WORKSPACES_DIR_PATH).mkdirs();
-            }
+            // Create directory paths if they don't exist
+            Path dataDir = Paths.get(DATA_DIR_PATH);
+            Path workspacesDir = Paths.get(WORKSPACES_DIR_PATH);
+            Path workspacesFile = Paths.get(WORKSPACES_FILE_PATH);
 
-            File workspaces = new File(WORKSPACES_FILE_PATH);
-            workspaces.createNewFile(); //if it already exists doenst create a thing
+            Files.createDirectories(dataDir);
+            Files.createDirectories(workspacesDir);
 
-        }catch (IOException e){
-            e.printStackTrace();
+            // Create workspaces file only if it doesn't exist
+            if (!Files.exists(workspacesFile)) {
+                Files.createFile(workspacesFile);
+            }
+        } catch (IOException e){
+            System.out.println("[FILE STORAGE] Erro ao criar diretórios e arquivos: " + e.getMessage());
         }
 
     }
 
+    /**
+     * Get the instance of the file storage manager.
+     *
+     * @return the instance
+     */
     public synchronized static FileStorageManager getInstance() {
-        if (Instance == null) {
-            Instance = new FileStorageManager();
+        if (INSTANCE == null) {
+            INSTANCE = new FileStorageManager();
         }
         
-        return Instance;
+        return INSTANCE;
     }
-
-
 
     ////////////////////////////////////////////////////////////
     
@@ -95,11 +99,10 @@ public class FileStorageManager {
         boolean[] uploaded = new boolean[filePaths.length];
         try {
             Path workSpacePath = Paths.get(WORKSPACES_DIR_PATH + workspace);
-        for (int i = 0; i < filePaths.length; i++) {
-            if (Files.move(Paths.get(filePaths[i]), workSpacePath,  StandardCopyOption.REPLACE_EXISTING) != null) {
+            for (int i = 0; i < filePaths.length; i++) {
+                Files.move(Paths.get(filePaths[i]), workSpacePath, StandardCopyOption.REPLACE_EXISTING);
                 uploaded[i] = true;
-            } 
-        }
+            }
         
         } catch (IOException e) {
             e.printStackTrace();
