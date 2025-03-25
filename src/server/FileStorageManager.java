@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -22,7 +23,7 @@ import java.util.Scanner;
 public class FileStorageManager {
 
     private static FileStorageManager Instance;
-    private final String WORKSPACES_FILE_PATH= "data/workspaces.txt";
+    private final String WORKSPACES_FILE_PATH = "data/workspaces.txt";
     private final String DATA_DIR_PATH = "src/server/data/";
     private final String WORKSPACES_DIR_PATH = "src/server/data/workspaces/";
 
@@ -77,7 +78,7 @@ public class FileStorageManager {
         return true;
     }
 
-    public Boolean addUserToWorkspace(String username, String Workspace)  {
+    public boolean addUserToWorkspace(String username, String Workspace)  {
         //TODO
         try (BufferedReader reader = new BufferedReader(new java.io.FileReader(WORKSPACES_FILE_PATH));
              BufferedWriter writer = new BufferedWriter(new java.io.FileWriter(WORKSPACES_FILE_PATH));)
@@ -90,16 +91,28 @@ public class FileStorageManager {
         return false;
     }
 
-    public Boolean[] uploadFile(String workspace, Path filePath) { 
-        return null;
+    public boolean[] uploadFiles(String workspace, String[] filePaths) { 
+        boolean[] uploaded = new boolean[filePaths.length];
+        try {
+            Path workSpacePath = Paths.get(WORKSPACES_DIR_PATH + workspace);
+        for (int i = 0; i < filePaths.length; i++) {
+            if (Files.move(Paths.get(filePaths[i]), workSpacePath,  StandardCopyOption.REPLACE_EXISTING) != null) {
+                uploaded[i] = true;
+            } 
+        }
+        
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return uploaded;
     }
 
-    public Path[] downloadFile(String workspace, String[] fileNames) {
-        Path[] paths = new Path[fileNames.length];
+    public String[] downloadFiles(String workspace, String[] fileNames) {
+        String[] paths = new String[fileNames.length];
         for (int i = 0; i < fileNames.length; i++) {
             Path path = Paths.get(WORKSPACES_DIR_PATH + workspace + "/" + fileNames[i]);
             if (Files.exists(path)) {
-                paths[i] = path;
+                paths[i] = path.toString();
             }
         }
         return paths;
@@ -137,13 +150,22 @@ public class FileStorageManager {
             e.printStackTrace();
         }
 
-        
-        
         return new String[0];
     }
 
     public String[] listFiles(String workspace) {
-        return null;
+        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
+            while (scanner.hasNextLine()) { 
+                String[] line = scanner.nextLine().split(":");
+                if (line.length < 2 && line[0].equals(workspace) ){
+                    return line[3].split(",");
+                }
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return new String[0];
     }
 
 
@@ -178,7 +200,7 @@ public class FileStorageManager {
         return false;
     }
 
-    public Boolean isUserOwner(String workspace, String username) {
+    public boolean isUserOwner(String username, String workspace) {
         try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
             while (scanner.hasNextLine()) { 
                 String[] line = scanner.nextLine().split(":");
@@ -204,7 +226,5 @@ public class FileStorageManager {
 
         return false;
     }
-
-
 
 }
