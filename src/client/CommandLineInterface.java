@@ -4,7 +4,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.util.Scanner;
 
-import static server.utils.InputUtils.isAlfaNumeric;
+import static server.utils.InputUtils.*;
 
 public class CommandLineInterface {
     private final NetworkManager networkManager;
@@ -13,6 +13,8 @@ public class CommandLineInterface {
     /**
      * Create a new command line interface.
      *
+     * @param in the input stream
+     * @param out the output stream
      */
     public CommandLineInterface(DataInputStream in, DataOutputStream out) {
         this.networkManager = new NetworkManager(in, out);
@@ -46,59 +48,89 @@ public class CommandLineInterface {
 
             for (String command : commands) {
                 String[] commandParts = command.split(" ");
-                if (!checkCommandParts(commandParts)){
-                    System.out.println("[CLIENT] Comando possui caracteres nao alfanumericos: " + command);
-                    System.out.println("[CLIENT] Comando nao executado: " + command);
+                String commandAction = commandParts[0].toUpperCase();
+                if(!isAlfaNumeric(commandAction)) {
+                    System.err.println("[CLIENT] Comando invalido: " + commandAction);
                     continue;
                 }
-                String commandAction = commandParts[0].toUpperCase();
 
                 switch (commandAction) {
                     case "CREATE":
                         if (commandParts.length == 2) {
-                            networkManager.createWorkspace(commandParts[1]);
+                            String workspace = commandParts[1];
+                            if (!isValidWorkspace(workspace)) {continue;}
+
+                            networkManager.createWorkspace(workspace);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: CREATE");
                         }
                         break;
                     case "ADD":
                         if (commandParts.length == 3) {
-                            // add user to workspace
+                            String user = commandParts[1];
+                            String workspace = commandParts[2];
+                            if(!isValidUser(user) || !isValidWorkspace(workspace)) {continue;}
+
+                            networkManager.addUserToWorkspace(user, workspace);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: ADD");
                         }
                         break;
                     case "UP":
                         if (commandParts.length >= 3) {
-                            // upload files to workspace
+                            String workspace = commandParts[1];
+                            if (!isValidWorkspace(workspace)) {continue;}
+
+                            String[] files = new String[commandParts.length - 2];
+                            System.arraycopy(commandParts, 2, files, 0, commandParts.length - 2);
+                            if (!isValidFiles(files)) {continue;}
+
+                            networkManager.uploadFilesToWorkspace(workspace, files);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: UP");
                         }
                         break;
                     case "DW":
                         if (commandParts.length >= 3) {
-                            // download files from workspace
+                            String workspace = commandParts[1];
+                            if (!isValidWorkspace(workspace)) {continue;}
+
+                            String[] files = new String[commandParts.length - 2];
+                            System.arraycopy(commandParts, 2, files, 0, commandParts.length - 2);
+                            if (!isValidFiles(files)) {continue;}
+
+                            networkManager.downloadFilesToWorkspace(workspace, files);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: DW");
                         }
                         break;
                     case "RM":
                         if (commandParts.length >= 3) {
-                            // remove files from workspace
+                            String workspace = commandParts[1];
+                            if (!isValidWorkspace(workspace)) {continue;}
+
+                            String[] files = new String[commandParts.length - 2];
+                            System.arraycopy(commandParts, 2, files, 0, commandParts.length - 2);
+                            if (!isValidFiles(files)) {continue;}
+
+                            networkManager.removeFilesFromWorkspace(workspace, files);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: RM");
                         }
                         break;
                     case "LW":
                         if (commandParts.length == 1) {
-                            // list workspaces
+                            networkManager.listWorkspaces();
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: LW");
                         }
                         break;
                     case "LS":
                         if (commandParts.length == 2) {
-                            // list files in workspace
+                            String workspace = commandParts[1];
+                            if (!isValidWorkspace(workspace)) {continue;}
+
+                            networkManager.listFilesWorkspace(workspace);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: LS");
                         }
@@ -111,17 +143,50 @@ public class CommandLineInterface {
     }
 
     /**
-     * Check if all command parts are alphanumeric
+     * Check if the workspace is valid.
      *
-     * @param commandParts the input to be checked
-     * @return true if the input is alphanumeric, false otherwise
+     * @param workspace the workspace
+     * @return true if the workspace is valid, false otherwise
      */
-    private boolean checkCommandParts(String[] commandParts){
-        for (String commandPart : commandParts) {
-            if (!isAlfaNumeric(commandPart)) {
+    private boolean isValidWorkspace(String workspace) {
+        if(!isValidUserOrWorkspace(workspace)) {
+            System.err.println("[CLIENT] Nome de workspace invalido!");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if the user is valid.
+     *
+     * @param user the user
+     * @return true if the user is valid, false otherwise
+     */
+    private boolean isValidUser(String user) {
+        if(!isValidUserOrWorkspace(user)) {
+            System.err.println("[CLIENT] Nome de utilizador invalido!");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if the files are valid.
+     *
+     * @param files the files
+     * @return true if the files are valid, false otherwise
+     */
+    private boolean isValidFiles(String[] files) {
+        for (String file : files) {
+            if(!isValidFilename(file)) {
+                System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
+                System.err.println("[CLIENT] Operacao abortada.");
                 return false;
             }
         }
+
         return true;
     }
 }
