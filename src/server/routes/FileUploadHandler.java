@@ -5,18 +5,29 @@ import server.utils.NetworkUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class FileUploadHandler implements RouteHandler {
     private static final String TEMP_DIR = "data/temp_files";
     private static final Map<String, FileUploadSession> uploadSessions = new HashMap<>();
 
+    /**
+     * Creates a new file upload handler.
+     */
     public FileUploadHandler() {
-        // Criar diretório temporário
-        new File(TEMP_DIR).mkdirs();
-        this.cleanupOrphanedFiles();
+        try {
+            Files.createDirectories(Paths.get(TEMP_DIR));
+            this.cleanupOrphanedFiles();
+        } catch (IOException e) {
+            System.err.println("[FILE UPLOAD HANDLER] Erro ao criar diretório temporário: " + e.getMessage());
+        }
     }
 
     @Override
@@ -54,15 +65,20 @@ public class FileUploadHandler implements RouteHandler {
         String fileName = body.get("fileName");
         long fileSize = Long.parseLong(body.get("size"));
         int chunks = Integer.parseInt(body.get("chunks"));
+        User owner = request.getAuthenticatedUser();
 
         if (fileName == null || fileSize < 0 || chunks <= 0) {
             return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos");
         }
 
+        if (owner == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
+        }
+
         String fileId = java.util.UUID.randomUUID().toString();
         String tempFilePath = TEMP_DIR + File.separator + fileId;
 
-        FileUploadSession session = new FileUploadSession(fileId, fileName, fileSize, tempFilePath);
+        FileUploadSession session = new FileUploadSession(fileId, fileName, fileSize, tempFilePath, owner.getUserId());
         uploadSessions.put(fileId, session);
 
         BodyJSON responseBody = new BodyJSON();
@@ -81,14 +97,23 @@ public class FileUploadHandler implements RouteHandler {
     private Response handleChunkData(Request request) {
         String fileId = request.getHeader("FILE-ID");
         int chunkId = Integer.parseInt(request.getHeader("CHUNK-ID"));
+        User owner = request.getAuthenticatedUser();
 
         if (fileId == null) {
             return NetworkUtils.createErrorResponse(request, "FILE-ID não fornecido");
         }
 
+        if (owner == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
+        }
+
         FileUploadSession session = uploadSessions.get(fileId);
         if (session == null) {
             return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
+        }
+
+        if (!session.isOwner(owner)) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
         }
 
         if (session.isComplete) {
@@ -137,14 +162,18 @@ public class FileUploadHandler implements RouteHandler {
             return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
         }
 
+        User owner = request.getAuthenticatedUser();
+        if (owner == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
+        }
+
+        if (!session.isOwner(owner)) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
+        }
+
         try {
             session.file.close();
             session.isComplete = true;
-
-            // Aqui poderia mover o arquivo para alguma localização permanente
-            // rename the file to the fileName just for testing purposes
-            File file = new File(session.tempFilePath);
-            file.renameTo(new File("data/teste/" + session.fileId + session.fileName));
 
             BodyJSON responseBody = new BodyJSON();
             responseBody.put("fileId", fileId);
@@ -160,16 +189,22 @@ public class FileUploadHandler implements RouteHandler {
      * Removes files that are not part of an active upload session. (Orphaned files)
      */
     private void cleanupOrphanedFiles() {
-        File tempDir = new File(TEMP_DIR);
-        if (tempDir.exists()) {
-            File[] tempFiles = tempDir.listFiles();
-            if (tempFiles != null) {
-                for (File file : tempFiles) {
-                    if (file.isFile() && !isActiveUpload(file.getName())) {
-                        file.delete();
-                        System.out.println("[FileUploadHandler] Removido ficheiro órfão: " + file.getPath());
-                    }
-                }
+        Path tempDir = Paths.get(TEMP_DIR);
+        if (Files.exists(tempDir)) {
+            try (Stream<Path> pathStream = Files.list(tempDir)) {
+                pathStream
+                        .filter(Files::isRegularFile)
+                        .filter(path -> !isActiveUpload(path.getFileName().toString()))
+                        .forEach(path -> {
+                            try {
+                                Files.delete(path);
+                                System.out.println("[FILE UPLOAD HANDLER] Ficheiro órfão removido: " + path);
+                            } catch (IOException e) {
+                                System.err.println("[FILE UPLOAD HANDLER] Erro ao remover ficheiro órfão: " + e.getMessage());
+                            }
+                        });
+            } catch (IOException e) {
+                System.err.println("[FILE UPLOAD HANDLER] Erro ao limpar ficheiros órfãos: " + e.getMessage());
             }
         }
     }
@@ -192,27 +227,113 @@ public class FileUploadHandler implements RouteHandler {
     /**
      * Represents a file upload session.
      */
-    private static class FileUploadSession {
+    public static class FileUploadSession {
         private final String fileId;
         private final String fileName;
         private final long totalSize;
         private final String tempFilePath;
         private long receivedBytes = 0;
         private int nextExpectedChunk = 0;
-        private RandomAccessFile file;
+        private final RandomAccessFile file;
         private boolean isComplete = false;
-        private User owner = null;
+        private String ownerUserId = null;
 
-        public FileUploadSession(String fileId, String fileName, long totalSize, String tempFilePath) {
+        public FileUploadSession(
+                String fileId,
+                String fileName,
+                long totalSize,
+                String tempFilePath,
+                String ownerUserId
+        ) {
             this.fileId = fileId;
             this.fileName = fileName;
             this.totalSize = totalSize;
             this.tempFilePath = tempFilePath;
+            this.ownerUserId = ownerUserId;
+
             try {
                 this.file = new RandomAccessFile(tempFilePath, "rw");
             } catch (FileNotFoundException e) {
                 throw new RuntimeException("Falha ao criar ficheiro temporário", e);
             }
         }
+
+        /**
+         * Checks if a user is the owner of the file upload session.
+         *
+         * @param user the user
+         * @return true if the user is the owner, false otherwise
+         */
+        public boolean isOwner(User user) {
+            if (ownerUserId == null) {
+                return false;
+            }
+
+            return ownerUserId.equals(user.getUserId());
+        }
+
+        /**
+         * Gets the file ID.
+         *
+         * @return the file ID
+         */
+        public String getFileId() {
+            return fileId;
+        }
+
+        /**
+         * Gets the file name.
+         *
+         * @return the file name
+         */
+        public String getFileName() {
+            return fileName;
+        }
+
+        /**
+         * Gets the total size of the file.
+         *
+         * @return the total size
+         */
+        public long getTotalSize() {
+            return totalSize;
+        }
+
+        /**
+         * Gets the path to the temporary file.
+         *
+         * @return the path to the temporary file
+         */
+        public String getTempFilePath() {
+            return tempFilePath;
+            }
+    }
+
+    /**
+     * Gets an upload session by file ID.
+     *
+     * @param fileId the file ID
+     * @return the upload session
+     */
+    public static FileUploadSession getUploadSession(String fileId) {
+        return uploadSessions.get(fileId);
+    }
+
+    /**
+     * Removes an upload session by file ID.
+     *
+     * @param fileId the file ID
+     */
+    public static void removeUploadSession(String fileId) {
+        uploadSessions.remove(fileId);
+    }
+
+    /**
+     * Gets the temporary directory for file uploads.
+     *
+     * @return the temporary directory
+     */
+    public static String getTempDir() {
+        return TEMP_DIR;
     }
 }
