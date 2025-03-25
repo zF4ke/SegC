@@ -29,9 +29,10 @@ public class Router {
             while (!clientSocket.isClosed()) {
                 try {
                     Request request = Request.fromStream(in);
-                    request.addHeader("USER-ID", authenticatedUser.getUserId());
+                    //request.addHeader("USER-ID", authenticatedUser.getUserId());
+                    request.setAuthenticatedUser(authenticatedUser);
 
-                    System.out.println("[ROUTER] Request recebido de " + authenticatedUser.getUserId() + ": " + request);
+                    System.out.println("[ROUTER] Request recebido de " + request.getAuthenticatedUser().getUserId() + ": " + request);
 
                     Response response = handleRequest(request);
                     System.out.println("[ROUTER] Response: " + response);
