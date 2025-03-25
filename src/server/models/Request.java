@@ -20,6 +20,7 @@ public class Request {
     private final String route;
     private final Body body;
     private final Map<String, String> headers;
+    private User authenticatedUser;
 
     /**
      * Creates a new request.
@@ -144,6 +145,24 @@ public class Request {
      */
     public Map<String, String> getHeaders() {
         return Map.copyOf(headers);  // Return an unmodifiable copy
+    }
+
+    /**
+     * Sets the authenticated user.
+     *
+     * @param user the authenticated user
+     */
+    public void setAuthenticatedUser(User user) {
+        this.authenticatedUser = user;
+    }
+
+    /**
+     * Gets the authenticated user.
+     *
+     * @return the authenticated user
+     */
+    public User getAuthenticatedUser() {
+        return authenticatedUser;
     }
 
     /**

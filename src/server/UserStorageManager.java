@@ -6,6 +6,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Scanner;
 
 /**
@@ -19,22 +22,14 @@ public class UserStorageManager {
      * Create a new user storage manager.
      */
     private UserStorageManager() {
-        File file = new File(USERS_FILE_PATH);
-        File directory = file.getParentFile();
-        if (directory != null && !directory.exists()) {
-            if (!directory.mkdirs()) {
-                System.err.println("[USER STORAGE] Erro ao criar diretório de dados: " + directory.getAbsolutePath());
+        try {
+            Path file = Paths.get(USERS_FILE_PATH);
+            Files.createDirectories(file.getParent());
+            if (!Files.exists(file)) {
+                Files.createFile(file);
             }
-        }
-        if (!file.exists()) {
-            try {
-                boolean result = file.createNewFile();
-                if (!result) {
-                    throw new IOException();
-                }
-            } catch (IOException e) {
-                System.err.println("[USER STORAGE] Erro ao criar arquivo de usuários: " + e.getMessage());
-            }
+        } catch (IOException e) {
+            System.err.println("[USER STORAGE] Erro ao inicializar ficheiro de usuários: " + e.getMessage());
         }
     }
 
