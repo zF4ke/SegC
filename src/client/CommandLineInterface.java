@@ -2,6 +2,8 @@ package client;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 import static server.utils.InputUtils.*;
@@ -42,7 +44,7 @@ public class CommandLineInterface {
             System.out.println("[CLIENT] LW # Lista os workspaces associados ao utilizador.");
             System.out.println("[CLIENT] LS <ws> # Lista os ficheiros dentro de um workspace.");
 
-            System.out.print("> ");
+            System.out.print("Comando: ");
             String input = scanner.nextLine();
             String[] commands = input.split("\n");
 
@@ -58,7 +60,7 @@ public class CommandLineInterface {
                     case "CREATE":
                         if (commandParts.length == 2) {
                             String workspace = commandParts[1];
-                            if (!isValidWorkspace(workspace)) {continue;}
+                            if (!isValidWorkspace(workspace)) {break;}
 
                             networkManager.createWorkspace(workspace);
                         } else {
@@ -69,7 +71,7 @@ public class CommandLineInterface {
                         if (commandParts.length == 3) {
                             String user = commandParts[1];
                             String workspace = commandParts[2];
-                            if(!isValidUser(user) || !isValidWorkspace(workspace)) {continue;}
+                            if(!isValidUser(user) || !isValidWorkspace(workspace)) {break;}
 
                             networkManager.addUserToWorkspace(user, workspace);
                         } else {
@@ -79,11 +81,13 @@ public class CommandLineInterface {
                     case "UP":
                         if (commandParts.length >= 3) {
                             String workspace = commandParts[1];
-                            if (!isValidWorkspace(workspace)) {continue;}
+                            if (!isValidWorkspace(workspace)) {break;}
 
                             String[] files = new String[commandParts.length - 2];
                             System.arraycopy(commandParts, 2, files, 0, commandParts.length - 2);
-                            if (!isValidFiles(files)) {continue;}
+
+                            String[] validFiles = validFiles(files);
+                            if (validFiles.length == 0) {break;}
 
                             networkManager.uploadFilesToWorkspace(workspace, files);
                         } else {
@@ -93,11 +97,13 @@ public class CommandLineInterface {
                     case "DW":
                         if (commandParts.length >= 3) {
                             String workspace = commandParts[1];
-                            if (!isValidWorkspace(workspace)) {continue;}
+                            if (!isValidWorkspace(workspace)) {break;}
 
                             String[] files = new String[commandParts.length - 2];
                             System.arraycopy(commandParts, 2, files, 0, commandParts.length - 2);
-                            if (!isValidFiles(files)) {continue;}
+
+                            String[] validFiles = validFiles(files);
+                            if (validFiles.length == 0) {break;}
 
                             networkManager.downloadFilesToWorkspace(workspace, files);
                         } else {
@@ -107,11 +113,13 @@ public class CommandLineInterface {
                     case "RM":
                         if (commandParts.length >= 3) {
                             String workspace = commandParts[1];
-                            if (!isValidWorkspace(workspace)) {continue;}
+                            if (!isValidWorkspace(workspace)) {break;}
 
                             String[] files = new String[commandParts.length - 2];
                             System.arraycopy(commandParts, 2, files, 0, commandParts.length - 2);
-                            if (!isValidFiles(files)) {continue;}
+
+                            String[] validFiles = validFiles(files);
+                            if (validFiles.length == 0) {break;}
 
                             networkManager.removeFilesFromWorkspace(workspace, files);
                         } else {
@@ -128,7 +136,7 @@ public class CommandLineInterface {
                     case "LS":
                         if (commandParts.length == 2) {
                             String workspace = commandParts[1];
-                            if (!isValidWorkspace(workspace)) {continue;}
+                            if (!isValidWorkspace(workspace)) {break;}
 
                             networkManager.listFilesWorkspace(workspace);
                         } else {
@@ -173,20 +181,23 @@ public class CommandLineInterface {
     }
 
     /**
-     * Check if the files are valid.
+     * Return the valid files.
      *
-     * @param files the files
-     * @return true if the files are valid, false otherwise
+     * @param files the files to be checked
+     * @return the valid files
      */
-    private boolean isValidFiles(String[] files) {
-        for (String file : files) {
-            if(!isValidFilename(file)) {
-                System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
-                System.err.println("[CLIENT] Operacao abortada.");
-                return false;
-            }
+    private String[] validFiles(String[] files) {
+    List<String> validFilesList = new ArrayList<>();
+    int filesToUpload = files.length;
+    for (String file : files) {
+        if (!isValidFilename(file)) {
+            System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
+            System.err.println("[CLIENT] Ficheiro nao enviado para o servidor.");
+            filesToUpload--;
+        } else {
+            validFilesList.add(file);
         }
-
-        return true;
     }
+    return validFilesList.toArray(new String[filesToUpload]);
+}
 }

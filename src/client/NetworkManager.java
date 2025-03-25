@@ -31,7 +31,10 @@ public class NetworkManager {
         BodyJSON body = new BodyJSON();
         body.put("workspaceName", workspaceName);
 
-        buildRequest(body, "createWorkspace");
+        Response response = sendRequest(body, "createWorkspace");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
@@ -45,7 +48,10 @@ public class NetworkManager {
         body.put("user", user);
         body.put("workspace", workspace);
 
-        buildRequest(body, "addUserToWorkspace");
+        Response response = sendRequest(body, "addUserToWorkspace");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
@@ -61,7 +67,10 @@ public class NetworkManager {
         String filesString = String.join(",", files); // Use split to get the files back
         body.put("files", filesString);
 
-        buildRequest(body, "uploadFilesToWorkspace");
+        Response response = sendRequest(body, "uploadFilesToWorkspace");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
@@ -77,7 +86,10 @@ public class NetworkManager {
         String filesString = String.join(",", files);
         body.put("files", filesString);
 
-        buildRequest(body, "downloadFilesToWorkspace");
+        Response response = sendRequest(body, "downloadFilesToWorkspace");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
@@ -93,7 +105,10 @@ public class NetworkManager {
         String filesString = String.join(",", files);
         body.put("files", filesString);
 
-        buildRequest(body, "removeFilesFromWorkspace");
+        Response response = sendRequest(body, "removeFilesFromWorkspace");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
@@ -102,7 +117,10 @@ public class NetworkManager {
     public void listWorkspaces() {
         BodyJSON body = new BodyJSON();
 
-        buildRequest(body, "listWorkspaces");
+        Response response = sendRequest(body, "listWorkspaces");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
@@ -114,16 +132,21 @@ public class NetworkManager {
         BodyJSON body = new BodyJSON();
         body.put("workspace", workspace);
 
-        buildRequest(body, "listFilesWorkspace");
+        Response response = sendRequest(body, "listFilesWorkspace");
+        if (response != null) {
+            System.out.println("Resposta:" + response.getStatus());
+        }
     }
 
     /**
-     * Sends a request to the server and waits for a response.
+     * Sends a request to the server and returns the response.
      *
      * @param body the request body
      * @param route the route
+     *
+     * @return the response
      */
-    private void buildRequest(BodyJSON body, String route) {
+    private Response sendRequest(BodyJSON body, String route) {
         try {
             Request request = new Request(
                     NetworkUtils.randomUUID(),
@@ -134,11 +157,11 @@ public class NetworkManager {
 
             out.write(request.toByteArray());
 
-            Response response = Response.fromStream(in);
-            System.out.println("[CLIENT] Resposta recebida do servidor: " + response.getStatus());
-
+            return Response.fromStream(in);
         } catch (IOException e) {
             System.err.println("[CLIENT] Erro ao processar pedido: " + e.getMessage());
         }
+
+        return null;
     }
 }
