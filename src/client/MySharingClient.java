@@ -91,8 +91,8 @@ public class MySharingClient {
 
             System.out.println("[CLIENT] Autenticação bem sucedida.");
 
-            // APAGAR DEPOIS
-            //Testes.tests(in, out);
+            CommandLineInterface cli = new CommandLineInterface(in, out);
+            cli.start();
 
         } catch (Exception e) {
             System.err.println("[CLIENT] Erro ao conectar ao servidor: " + e.getMessage());
