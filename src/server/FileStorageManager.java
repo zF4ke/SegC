@@ -303,12 +303,12 @@ public class FileStorageManager {
      * @return the file if it exists, null otherwise
      */
     public File getFile(String fileName, String workspaceId) {
-    if (fileName == null || workspaceId == null) {
-        return null;
+        if (fileName == null || workspaceId == null) {
+            return null;
+        }
+        String dir = WORKSPACES_DIR_PATH + workspaceId;
+        return new File(dir, fileName);
     }
-    String dir = WORKSPACES_DIR_PATH + workspaceId;
-    return new File(dir, fileName);
-}
 
     /**
      * Delete a file from a workspace.
@@ -324,5 +324,4 @@ public class FileStorageManager {
         }
         return file.delete();
     }
-
 }

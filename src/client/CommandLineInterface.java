@@ -191,17 +191,17 @@ public class CommandLineInterface {
      * @return the valid files
      */
     private String[] validFiles(String[] files) {
-    List<String> validFilesList = new ArrayList<>();
-    int filesToUpload = files.length;
-    for (String file : files) {
-        if (!InputUtils.isValidFilename(file)) {
-            System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
-            //System.err.println("[CLIENT] Ficheiro nao enviado para o servidor.");
-            filesToUpload--;
-        } else {
-            validFilesList.add(file);
+        List<String> validFilesList = new ArrayList<>();
+        int filesToUpload = files.length;
+        for (String file : files) {
+            if (!InputUtils.isValidFilename(file)) {
+                System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
+                //System.err.println("[CLIENT] Ficheiro nao enviado para o servidor.");
+                filesToUpload--;
+            } else {
+                validFilesList.add(file);
+            }
         }
+        return validFilesList.toArray(new String[filesToUpload]);
     }
-    return validFilesList.toArray(new String[filesToUpload]);
-}
 }
