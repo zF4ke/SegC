@@ -138,4 +138,12 @@ public class WorkspaceManager {
 
         return new String[0];
     }
+
+    public boolean isFileInWorksapce(String fileName, String workspace) {
+        return fsm.isFileInWorkspace(fileName, workspace);
+    }
+
+    public File getFile(String fileName, String workspace) {
+        return fsm.getFile(fileName, workspace);
+    }
 }

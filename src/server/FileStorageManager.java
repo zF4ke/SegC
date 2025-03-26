@@ -9,8 +9,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
-
-import server.models.StatusCode;
 import server.models.Workspace;
 
 /*
@@ -294,6 +292,17 @@ public class FileStorageManager {
         }
         
         return filesRemoved;
+    }
+
+    public boolean isFileInWorkspace(String fileName, String workspaceId) {
+        File file = getFile(fileName, workspaceId);
+        return file.exists();
+    }
+
+    public File getFile(String fileName, String workspaceId) {
+        String dir = WORKSPACES_DIR_PATH + workspaceId;
+        File file = new File(dir, fileName);
+        return file;
     }
 
 }
