@@ -32,25 +32,29 @@ public class FileUploadHandler implements RouteHandler {
 
     @Override
     public Response handle(Request request) {
-        if (request.getFormat() == BodyFormat.JSON) {
-            BodyJSON body = (BodyJSON) request.getBody();
-            String action = body.get("action");
+        try {
+            if (request.getFormat() == BodyFormat.JSON) {
+                BodyJSON body = request.getBodyJSON();
+                String action = body.get("action");
 
-            switch (action) {
-                case "init":
-                    return handleInitialization(request);
-                case "complete":
-                    return handleCompletion(request);
-                default:
-                    return NetworkUtils.createErrorResponse(request, "Ação inválida");
+                switch (action) {
+                    case "init":
+                        return handleInitialization(request);
+                    case "complete":
+                        return handleCompletion(request);
+                    default:
+                        return NetworkUtils.createErrorResponse(request, "Ação inválida");
+                }
+            } else if (request.getFormat() == BodyFormat.RAW) {
+                if (request.getHeader("TYPE").equals("CHUNK")) {
+                    return handleChunkData(request);
+                }
             }
-        } else if (request.getFormat() == BodyFormat.RAW) {
-            if (request.getHeader("TYPE").equals("CHUNK")) {
-                return handleChunkData(request);
-            }
+
+            return NetworkUtils.createErrorResponse(request, "Request inválido");
+        } catch (Exception e) {
+            return NetworkUtils.createErrorResponse(request, "Erro ao processar pedido: " + e.getMessage());
         }
-
-        return NetworkUtils.createErrorResponse(request, "Request inválido");
     }
 
     /**
@@ -60,7 +64,7 @@ public class FileUploadHandler implements RouteHandler {
      * @return the response
      */
     private Response handleInitialization(Request request) {
-        BodyJSON body = (BodyJSON) request.getBody();
+        BodyJSON body = request.getBodyJSON();
 
         String fileName = body.get("fileName");
         long fileSize = Long.parseLong(body.get("size"));
@@ -85,7 +89,7 @@ public class FileUploadHandler implements RouteHandler {
         responseBody.put("fileId", fileId);
         responseBody.put("status", "ready");
 
-        return new Response(request.getUUID(), BodyFormat.JSON, StatusCodes.OK, responseBody);
+        return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
     }
 
     /**
@@ -126,7 +130,9 @@ public class FileUploadHandler implements RouteHandler {
         }
 
         try {
-            byte[] data = ((BodyRaw) request.getBody()).toBytes();
+            BodyRaw body = request.getBodyRaw();
+            byte[] data = body.toBytes();
+
             session.file.seek(session.receivedBytes);
             session.file.write(data);
             session.receivedBytes += data.length;
@@ -137,7 +143,7 @@ public class FileUploadHandler implements RouteHandler {
             responseBody.put("chunkId", String.valueOf(chunkId));
             responseBody.put("status", "chunk received");
 
-            return new Response(request.getUUID(), BodyFormat.JSON, StatusCodes.OK, responseBody);
+            return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
         } catch (Exception e) {
             return NetworkUtils.createErrorResponse(request, "Erro ao processar chunk: " + e.getMessage());
         }
@@ -150,7 +156,7 @@ public class FileUploadHandler implements RouteHandler {
      * @return the response
      */
     private Response handleCompletion(Request request) {
-        BodyJSON body = (BodyJSON) request.getBody();
+        BodyJSON body = request.getBodyJSON();
         String fileId = body.get("fileId");
 
         if (fileId == null) {
@@ -179,7 +185,7 @@ public class FileUploadHandler implements RouteHandler {
             responseBody.put("fileId", fileId);
             responseBody.put("status", "file uploaded");
 
-            return new Response(request.getUUID(), BodyFormat.JSON, StatusCodes.OK, responseBody);
+            return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
         } catch (Exception e) {
             return NetworkUtils.createErrorResponse(request, "Erro ao finalizar upload: " + e.getMessage());
         }

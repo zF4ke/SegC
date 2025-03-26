@@ -6,19 +6,19 @@ import java.util.List;
  * Represents a workspace.
  */
 public class Workspace {
-    private final String name;
+    private final String id;
     private final String ownerUsername;
     private final List<String> members;
 
     /**
      * Create a new workspace.
      *
-     * @param name the name of the workspace
+     * @param id the id of the workspace
      * @param ownerUsername the username of the owner
      * @param members the list of members
      */
-    public Workspace(String name, String ownerUsername, List<String> members) {
-        this.name = name;
+    public Workspace(String id, String ownerUsername, List<String> members) {
+        this.id = id;
         this.ownerUsername = ownerUsername;
         this.members = members;
     }
@@ -28,8 +28,8 @@ public class Workspace {
      *
      * @return the name
      */
-    public String getName() {
-        return name;
+    public String getId() {
+        return id;
     }
 
     /**
@@ -51,30 +51,12 @@ public class Workspace {
     }
 
     /**
-     * Add a member to the workspace.
-     *
-     * @param username the username of the member
-     */
-    public void addMember(String username) {
-        members.add(username);
-    }
-
-    /**
-     * Remove a member from the workspace.
-     *
-     * @param username the username of the member
-     */
-    public void removeMember(String username) {
-        members.remove(username);
-    }
-
-    /**
      * Check if a user is a member of the workspace.
      *
      * @param username the username of the user
      * @return true if the user is a member, false otherwise
      */
-    public boolean isMember(String username) {
+    public boolean hasMember(String username) {
         return members.contains(username);
     }
 

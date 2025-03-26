@@ -22,12 +22,22 @@ public class InputUtils {
     }
 
     /**
-     * Check if the user or workspace is valid.
+     * Check if the workspace id is valid.
      *
-     * @param input the input
-     * @return true if the user and workspace are valid, false otherwise
+     * @param input the workspace id
+     * @return true if the workspace id is valid, false otherwise
      */
-    public static boolean isValidUserOrWorkspace(String input) {
+    public static boolean isValidWorkspaceId(String input) {
+        return input.matches("^[a-zA-Z0-9_]+$");
+    }
+
+    /**
+     * Check if the user id is valid.
+     *
+     * @param input the user id
+     * @return true if the user id is valid, false otherwise
+     */
+    public static boolean isValidUserId(String input) {
         return input.matches("^[a-zA-Z0-9]+$");
     }
 

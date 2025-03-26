@@ -1,21 +1,21 @@
 package server;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
+
+import server.models.StatusCode;
 import server.models.Workspace;
 
 /*
 * workspaces.txt example:
+* id:owner_username:user1,user2,user3,user4
 * workspace001:owner_username:user1,user2,user3,user4
 *
 *
@@ -23,9 +23,9 @@ import server.models.Workspace;
 
 public class FileStorageManager {
     private static FileStorageManager INSTANCE;
-    private final String DATA_DIR_PATH = "data/";
-    private final String WORKSPACES_FILE_PATH = "data/workspaces.txt";
-    private final String WORKSPACES_DIR_PATH = "data/workspaces/";
+    private static final String DATA_DIR_PATH = "data/";
+    private static final String WORKSPACES_FILE_PATH = "data/workspaces.txt";
+    private static final String WORKSPACES_DIR_PATH = "data/workspaces/";
 
     /**
      * Create a new file storage manager.
@@ -63,37 +63,186 @@ public class FileStorageManager {
         return INSTANCE;
     }
 
-    ////////////////////////////////////////////////////////////
-    
-    public Boolean createWorkspace(String username, String workspace) {
-        try (BufferedWriter bufferedWriter = new BufferedWriter(new java.io.FileWriter(WORKSPACES_FILE_PATH, true))) { 
+    /**
+     * Gets a workspace from the file.
+     *
+     * @param workspaceId the workspace ID
+     * @return the workspace, or null if the workspace does not exist
+     */
+    public Workspace getWorkspace(String workspaceId) {
+        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] parts = line.split(":");
+
+                int NUM_PARTS = 3;
+                if (parts.length != NUM_PARTS) {
+                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                    continue;
+                }
+
+                String id = parts[0];
+                String ownerUsername = parts[1];
+                List<String> members = Arrays.asList(parts[2].split(","));
+
+                if (id.equals(workspaceId)) {
+                    return new Workspace(id, ownerUsername, members);
+                }
+            }
+
+        } catch (IOException e) {
+            System.err.println("[FILE STORAGE] Erro ao carregar workspaces: " + e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Create a new workspace.
+     *
+     * @param userId the user ID of the owner
+     * @param name the name of the workspace
+     * @return true if the workspace was created, false otherwise
+     */
+    public boolean createWorkspace(String userId, String name) {
+        String workspaceId = userId + "_" + name;
+
+        if (this.getWorkspace(workspaceId) != null) {
+            System.err.println("[FILE STORAGE] Workspace já existe: " + workspaceId);
+            return false;
+        }
+
+        try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(WORKSPACES_FILE_PATH, true))) {
             //adding the workspace to the workspace.txt file
-            String newLine = workspace + ":" + username + ":" + username;
+            String newLine = workspaceId + ":" + userId + ":" + userId;
             bufferedWriter.write(newLine);
             bufferedWriter.newLine();
 
             //creating the dir for the workspace
-            new File(WORKSPACES_DIR_PATH + workspace).mkdirs();
-
+            Files.createDirectory(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
         } catch (IOException e) {
-            System.out.println("Error creating BufferedWriter to write a new workspace in workspaces.txt: " + e.getMessage());
+            System.out.println("[FILE STORAGE] Erro ao criar workspace: " + e.getMessage());
             return false;
         }
 
         return true;
     }
 
-    public boolean addUserToWorkspace(String username, String Workspace)  {
-        //TODO
-        try (BufferedReader reader = new BufferedReader(new java.io.FileReader(WORKSPACES_FILE_PATH));
-             BufferedWriter writer = new BufferedWriter(new java.io.FileWriter(WORKSPACES_FILE_PATH));)
+    /**
+     * Add a user to the workspace.
+     *
+     * @param workspaceId the workspace ID
+     * @param userId the user ID to add to the workspace
+     * @return true if the user was added, false otherwise
+     */
+    public boolean addUserToWorkspace(String workspaceId, String userId)  {
+        try {
+            File file = new File(WORKSPACES_FILE_PATH);
+            Scanner scanner = new Scanner(file);
+            StringBuilder newContent = new StringBuilder();
+            boolean workspaceFound = false;
 
-        {
-            
-        } catch (Exception e) {
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] parts = line.split(":");
+
+                int NUM_PARTS = 3;
+                if (parts.length != NUM_PARTS) {
+                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                    continue;
+                }
+
+                String id = parts[0];
+                String ownerUsername = parts[1];
+                List<String> members = new ArrayList<>(Arrays.asList(parts[2].split(",")));
+
+                if (id.equals(workspaceId)) {
+                    workspaceFound = true;
+
+                    if (members.contains(userId)) {
+                        System.err.println("[FILE STORAGE] Usuário já é membro do workspace: " + userId);
+                        return false;
+                    }
+
+                    members.add(userId);
+                    newContent
+                            .append(id)
+                            .append(":")
+                            .append(ownerUsername)
+                            .append(":");
+                    for (String member : members) {
+                        newContent.append(member).append(",");
+                    }
+                    newContent.deleteCharAt(newContent.length() - 1);
+                } else {
+                    newContent.append(line);
+                }
+
+                newContent.append("\n");
+            }
+
+            if (!workspaceFound) {
+                System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+                return false;
+            }
+
+            FileWriter fileWriter = new FileWriter(file);
+            fileWriter.write(newContent.toString());
+            fileWriter.close();
+
+            return true;
+        } catch (IOException e) {
+            System.err.println("[FILE STORAGE] Erro ao adicionar usuário ao workspace: " + e.getMessage());
+            return false;
         }
-        
-        return false;
+    }
+
+    /**
+     * List all workspaces that a user is a member of.
+     *
+     * @param usernameId the user ID
+     * @return an array of workspace IDs
+     */
+    public String[] listWorkspaceIds(String usernameId) {
+        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))) {
+            List<String> workspaceIds = new ArrayList<>();
+
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] parts = line.split(":");
+
+                int NUM_PARTS = 3;
+                if (parts.length != NUM_PARTS) {
+                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                    continue;
+                }
+
+                String id = parts[0];
+                String ownerUsername = parts[1];
+                List<String> members = Arrays.asList(parts[2].split(","));
+
+                if (ownerUsername.equals(usernameId) || members.contains(usernameId)) {
+                    workspaceIds.add(id);
+                }
+            }
+
+            return workspaceIds.toArray(new String[0]);
+        } catch (IOException e) {
+            System.err.println("[FILE STORAGE] Erro ao listar workspaces: " + e.getMessage());
+
+            return new String[0];
+        }
+    }
+
+    /**
+     * List all files in a workspace.
+     *
+     * @param workspaceId the workspace ID
+     * @return an array of file names
+     */
+    public String[] listWorkspaceFiles(String workspaceId) {
+        File workspaceDir = new File(WORKSPACES_DIR_PATH + workspaceId);
+        return workspaceDir.list();
     }
 
     public boolean[] uploadFiles(String workspace, String[] filePaths) { 
@@ -130,104 +279,6 @@ public class FileStorageManager {
         }
         
         return filesRemoved;
-    }
-
-    public String[] listWorkspaces(String username){
-        try(Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))) {
-            List<String> list = new ArrayList<>();
-
-            while(scanner.hasNextLine()) {
-                Workspace w = createWorkspace(scanner.nextLine());
-                if (w.isMember(username)){
-                    list.add(w.getName());
-                }
-            }
-            return list.toArray(String[]:: new);
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            System.out.println("Invalid format off workspace");
-            e.printStackTrace();
-        }
-
-        return new String[0];
-    }
-
-    public String[] listFiles(String workspace) {
-        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
-            while (scanner.hasNextLine()) { 
-                Workspace w = createWorkspace(scanner.nextLine());
-                if ( w.getName().equals(workspace) ){
-                    File dir = new File(WORKSPACES_DIR_PATH + workspace);
-                    return dir.list();
-                }
-            }
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        return new String[0];
-    }
-
-
-    ///////////////////////////////////////////////////////////
-    
-    public Boolean workspaceExists(String workspace) {
-       return Files.exists(Paths.get(WORKSPACES_DIR_PATH + workspace));
-    }
-    
-    public boolean isUserInWorkspace(String username, String workspace) {
-        
-        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
-            while (scanner.hasNextLine()) { 
-                Workspace w = createWorkspace(scanner.nextLine());
-                if (w.getName().equals(workspace) && w.isMember(username)){
-                    return true;
-                }
-            }
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } 
-        
-        return false;
-    }
-
-    public boolean isUserOwner(String ownerUsername, String workspace) {
-        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
-            while (scanner.hasNextLine()) { 
-                Workspace w = createWorkspace(scanner.nextLine());
-                if (w == null) {
-                    return false;
-                } 
-                if (w.getName().equals(workspace) && w.getOwnerUsername().equals(ownerUsername)){
-                    return true;
-                }
-            }
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            return false;
-        } 
-        return false;
-    }
-
-
-    private Workspace createWorkspace(String line) {
-        try {
-            String[] lineSplit = line.split(":");
-            if (lineSplit.length != 3) {
-                throw new IOException(); 
-            }
-            else {
-            return new Workspace(lineSplit[0], lineSplit[1], java.util.Arrays.asList(lineSplit[2].split(",")));
-            }
-        } catch (IOException e) {
-            System.out.println("[WORKSPACE INVALID FORMAT] Erro ao ler worksapces " + e.getMessage());
-            return null;
-        }
-
     }
 
 }

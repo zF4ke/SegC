@@ -36,7 +36,7 @@ public class Testes {
         // Verificações
         testSeparator();
 
-        assertPrint(StatusCodes.OK, response.getStatus());
+        assertPrint(StatusCode.OK, response.getStatus());
         assertPrint(request.getUUID(), response.getUUID());
         assertPrint(BodyFormat.JSON, response.getFormat());
         assertPrint(true, response.getBody() instanceof BodyJSON);
@@ -77,7 +77,7 @@ public class Testes {
         // Verificações
         testSeparator();
 
-        assertPrint(StatusCodes.NOT_FOUND, response2.getStatus());
+        assertPrint(StatusCode.NOT_FOUND, response2.getStatus());
         assertPrint(request2.getUUID(), response2.getUUID());
         assertPrint(BodyFormat.RAW, request2.getFormat());
         assertPrint(BodyFormat.JSON, response2.getFormat());
@@ -202,7 +202,7 @@ public class Testes {
         Response initResponse = Response.fromStream(in);
         System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
 
-        if (initResponse.getStatus() != StatusCodes.OK) {
+        if (initResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao inicializar upload");
             return null;
         }
@@ -239,7 +239,7 @@ public class Testes {
                 out.write(chunkRequest.toByteArray());
 
                 Response chunkResponse = Response.fromStream(in);
-                if (chunkResponse.getStatus() != StatusCodes.OK) {
+                if (chunkResponse.getStatus() != StatusCode.OK) {
                     System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
                     return null;
                 }
@@ -263,7 +263,7 @@ public class Testes {
         out.write(completeRequest.toByteArray());
         Response completeResponse = Response.fromStream(in);
 
-        if (completeResponse.getStatus() != StatusCodes.OK) {
+        if (completeResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao finalizar upload");
             return null;
         }

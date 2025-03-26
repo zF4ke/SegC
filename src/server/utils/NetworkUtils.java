@@ -50,8 +50,27 @@ public class NetworkUtils {
 
         return new Response(
                 request.getUUID(),
+                StatusCode.BAD_REQUEST,
                 BodyFormat.JSON,
-                StatusCodes.BAD_REQUEST,
+                body
+        );
+    }
+
+    /**
+     * Creates a response with an error message.
+     *
+     * @param request the request
+     * @param status the status code
+     * @return the response
+     */
+    public static Response createErrorResponse(Request request, StatusCode status) {
+        BodyJSON body = new BodyJSON();
+        body.put("error", status.name());
+
+        return new Response(
+                request.getUUID(),
+                status,
+                BodyFormat.JSON,
                 body
         );
     }

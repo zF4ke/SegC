@@ -3,10 +3,6 @@ package server.routes;
 import server.models.*;
 import server.utils.NetworkUtils;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
-
 public class UploadWorkspaceHandler implements RouteHandler {
     @Override
     public Response handle(Request request) {
@@ -31,8 +27,8 @@ public class UploadWorkspaceHandler implements RouteHandler {
 
         return new Response(
             request.getUUID(),
+            StatusCode.NOT_FOUND,
             BodyFormat.JSON,
-            StatusCodes.NOT_FOUND,
             null
         );
     }

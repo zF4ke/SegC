@@ -1,12 +1,12 @@
 package client;
 
+import server.utils.InputUtils;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-
-import static server.utils.InputUtils.*;
 
 public class CommandLineInterface {
     private final NetworkManager networkManager;
@@ -24,7 +24,7 @@ public class CommandLineInterface {
 
         // Shutdown hook to close gracefully
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("[CLIENT] Shutting down...");
+            System.out.println("\n[CLIENT] Shutting down...");
             scanner.close();
         }));
     }
@@ -34,15 +34,15 @@ public class CommandLineInterface {
      */
     public void start() {
         while (true) {
-            System.out.println("[CLIENT] Comandos disponiveis para uso:");
-            System.out.println("[CLIENT] CREATE <ws> # Criar um novo workspace - utilizador `e Owner.");
+            System.out.println("\n[CLIENT] Comandos disponiveis para uso:");
+            System.out.println("[CLIENT] CREATE <ws> # Criar um novo workspace - utilizador é Owner.");
             System.out.println("[CLIENT] ADD <user1> <ws> # Adicionar utilizador <user1> ao workspace <ws>. " +
                     "A operação ADD só funciona se o utilizador for o Owner do workspace <ws>");
             System.out.println("[CLIENT] UP <ws> <file1> ... <filen> # Adicionar ficheiros ao workspace.");
             System.out.println("[CLIENT] DW <ws> <file1> ... <filen> # Download de ficheiros do workspace para a maquina local.");
             System.out.println("[CLIENT] RM <ws> <file1> ... <filen> # Apagar ficheiros do workspace.");
             System.out.println("[CLIENT] LW # Lista os workspaces associados ao utilizador.");
-            System.out.println("[CLIENT] LS <ws> # Lista os ficheiros dentro de um workspace.");
+            System.out.println("[CLIENT] LS <ws> # Lista os ficheiros dentro de um workspace.\n");
 
             System.out.print("Comando: ");
             String input = scanner.nextLine();
@@ -51,7 +51,7 @@ public class CommandLineInterface {
             for (String command : commands) {
                 String[] commandParts = command.split(" ");
                 String commandAction = commandParts[0].toUpperCase();
-                if(!isAlfaNumeric(commandAction)) {
+                if(!InputUtils.isAlfaNumeric(commandAction)) {
                     System.err.println("[CLIENT] Comando invalido: " + commandAction);
                     continue;
                 }
@@ -157,7 +157,7 @@ public class CommandLineInterface {
      * @return true if the workspace is valid, false otherwise
      */
     private boolean isValidWorkspace(String workspace) {
-        if(!isValidUserOrWorkspace(workspace)) {
+        if(!InputUtils.isValidWorkspaceId(workspace)) {
             System.err.println("[CLIENT] Nome de workspace invalido!");
             return false;
         }
@@ -172,7 +172,7 @@ public class CommandLineInterface {
      * @return true if the user is valid, false otherwise
      */
     private boolean isValidUser(String user) {
-        if(!isValidUserOrWorkspace(user)) {
+        if(!InputUtils.isValidUserId(user)) {
             System.err.println("[CLIENT] Nome de utilizador invalido!");
             return false;
         }
@@ -190,7 +190,7 @@ public class CommandLineInterface {
     List<String> validFilesList = new ArrayList<>();
     int filesToUpload = files.length;
     for (String file : files) {
-        if (!isValidFilename(file)) {
+        if (!InputUtils.isValidFilename(file)) {
             System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
             System.err.println("[CLIENT] Ficheiro nao enviado para o servidor.");
             filesToUpload--;

@@ -31,9 +31,17 @@ public class NetworkManager {
         BodyJSON body = new BodyJSON();
         body.put("workspaceName", workspaceName);
 
-        Response response = sendRequest(body, "createWorkspace");
+        Response response = sendRequest(body, "createworkspace");
         if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
+            try {
+                BodyJSON responseBody = response.getBodyJSON();
+                String message = responseBody.get("message");
+                if (message == null) message = "";
+
+                System.out.println("Resposta: (" + response.getStatus() + ") " + message);
+            } catch (Exception e) {
+                System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+            }
         }
     }
 
@@ -46,11 +54,19 @@ public class NetworkManager {
     public void addUserToWorkspace(String user, String workspace) {
         BodyJSON body = new BodyJSON();
         body.put("user", user);
-        body.put("workspace", workspace);
+        body.put("workspaceId", workspace);
 
-        Response response = sendRequest(body, "addUserToWorkspace");
+        Response response = sendRequest(body, "addusertoworkspace");
         if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
+            try {
+                BodyJSON responseBody = response.getBodyJSON();
+                String message = responseBody.get("message");
+                if (message == null) message = "";
+
+                System.out.println("Resposta: (" + response.getStatus() + ") " + message);
+            } catch (Exception e) {
+                System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+            }
         }
     }
 
@@ -88,7 +104,7 @@ public class NetworkManager {
 
         Response response = sendRequest(body, "downloadFilesToWorkspace");
         if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
+            System.out.println("Resposta: " + response.getStatus());
         }
     }
 
@@ -107,7 +123,7 @@ public class NetworkManager {
 
         Response response = sendRequest(body, "removeFilesFromWorkspace");
         if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
+            System.out.println("Resposta: " + response.getStatus());
         }
     }
 
@@ -115,11 +131,20 @@ public class NetworkManager {
      * Sends a request to the server to list workspaces.
      */
     public void listWorkspaces() {
-        BodyJSON body = new BodyJSON();
-
-        Response response = sendRequest(body, "listWorkspaces");
+        Response response = sendRequest(new BodyJSON(), "listworkspaces");
         if (response != null) {
             System.out.println("Resposta:" + response.getStatus());
+
+            try {
+                BodyJSON responseBody = response.getBodyJSON();
+                String workspaceIds = responseBody.get("workspaceIds");
+                if (workspaceIds == null) workspaceIds = "";
+
+                System.out.println("Resposta: (" + response.getStatus() + ") " + workspaceIds);
+            } catch (Exception e) {
+                System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
     }
 
@@ -130,11 +155,19 @@ public class NetworkManager {
      */
     public void listFilesWorkspace(String workspace) {
         BodyJSON body = new BodyJSON();
-        body.put("workspace", workspace);
+        body.put("workspaceId", workspace);
 
-        Response response = sendRequest(body, "listFilesWorkspace");
+        Response response = sendRequest(body, "listworkspacefiles");
         if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
+            try {
+                BodyJSON responseBody = response.getBodyJSON();
+                String files = responseBody.get("files");
+                if (files == null) files = "";
+
+                System.out.println("Resposta: (" + response.getStatus() + ") " + files);
+            } catch (Exception e) {
+                System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+            }
         }
     }
 

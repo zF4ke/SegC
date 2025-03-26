@@ -119,6 +119,32 @@ public class Request {
     }
 
     /**
+     * Returns the body as a BodyJSON if it's in JSON format.
+     *
+     * @return The body as a BodyJSON
+     * @throws IllegalArgumentException if the body format is not JSON
+     */
+    public BodyJSON getBodyJSON() throws IllegalArgumentException {
+        if (this.getBody().getFormat() != BodyFormat.JSON || !(this.getBody() instanceof BodyJSON)) {
+            throw new IllegalArgumentException("O corpo não está no formato JSON");
+        }
+        return (BodyJSON) this.getBody();
+    }
+
+    /**
+     * Returns the body as a BodyRaw if it's in RAW format.
+     *
+     * @return The body as a BodyRaw
+     * @throws IllegalArgumentException if the body format is not RAW
+     */
+    public BodyRaw getBodyRaw() throws IllegalArgumentException {
+        if (this.getBody().getFormat() != BodyFormat.RAW || !(this.getBody() instanceof BodyRaw)) {
+            throw new IllegalArgumentException("O corpo não está no formato RAW");
+        }
+        return (BodyRaw) this.getBody();
+    }
+
+    /**
      * Gets a header value.
      *
      * @param key Header key

@@ -6,6 +6,8 @@ import server.utils.NetworkUtils;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.List;
+import java.util.Scanner;
 
 /**
  * The client class.
@@ -139,10 +141,35 @@ public class MySharingClient {
             );
 
             this.out.write(request.toByteArray());
-
             Response response = Response.fromStream(in);
-            return response.getStatus() == StatusCodes.OK;
 
+            System.out.println("[CLIENT] Resposta: " + response);
+
+            List<StatusCode> OK_CODES = List.of(StatusCode.OK_USER, StatusCode.OK_NEW_USER);
+
+            if (OK_CODES.contains(response.getStatus())) {
+                return true;
+            } else if (response.getStatus() == StatusCode.WRONG_PWD) {
+                Scanner s = new Scanner(System.in);
+
+                System.out.print("[CLIENT] Password incorreta. Tente novamente.\n[CLIENT] Segunda tentativa: ");
+                String newPassword = s.nextLine();
+
+                body.put("password", newPassword);
+                request = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.JSON,
+                        "authenticate",
+                        body
+                );
+
+                this.out.write(request.toByteArray());
+                response = Response.fromStream(in);
+
+                System.out.println("[CLIENT] Resposta Segunda Tentativa: " + response);
+
+                return OK_CODES.contains(response.getStatus());
+            }
         } catch (Exception e) {
             System.err.println("[CLIENT] Erro ao autenticar utilizador: " + e.getMessage());
         }

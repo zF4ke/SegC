@@ -1,8 +1,7 @@
 package server;
 
 import server.models.*;
-import server.routes.ExampleRouteHandler;
-import server.routes.FileUploadHandler;
+import server.routes.*;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -55,17 +54,27 @@ public class Router {
      */
     private static Response handleRequest(Request request) {
         switch (request.getRoute()) {
-            case "example":
-                return new ExampleRouteHandler().handle(request);
+            case "createworkspace":
+                return new CreateWorkspaceHandler().handle(request);
+            case "addusertoworkspace":
+                return new AddUserToWorkspaceHandler().handle(request);
+//            case "uploadfiletoworkspace":
+//                return new UploadFileToWorkspaceHandler().handle(request);
+//            case "downloadfilefromworkspace":
+//                return DownloadFileFromWorkspaceHandler.handle(request);
+//            case "removefilefromworkspace":
+//                return new RemoveFileFromWorkspaceHandler().handle(request);
+            case "listworkspaces":
+                return new ListWorkspacesHandler().handle(request);
+            case "listworkspacefiles":
+                return new ListWorkspaceFilesHandler().handle(request);
             case "fileupload":
                 return new FileUploadHandler().handle(request);
-//            case "uploadWorkspace":
-//                return new UploadWorkspaceHandler().handle(request);
             default:
                 BodyJSON body = new BodyJSON();
                 body.put("error", "Rota não encontrada");
 
-                return new Response(request.getUUID(), BodyFormat.JSON, StatusCodes.NOT_FOUND, body);
+                return new Response(request.getUUID(), StatusCode.NOT_FOUND, BodyFormat.JSON, body);
         }
     }
 

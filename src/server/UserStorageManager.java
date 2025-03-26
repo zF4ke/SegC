@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Scanner;
 
 /**
@@ -99,6 +100,51 @@ public class UserStorageManager {
         } catch (IOException e) {
             System.err.println("[USER STORAGE] Erro ao adicionar usuário: " + e.getMessage());
 
+            return false;
+        }
+    }
+
+    /**
+     * Remove a user from the file.
+     *
+     * @param user the user
+     * @return true if the user was removed, false otherwise
+     */
+    public boolean removeUser(String user) {
+        File inputFile = new File(USERS_FILE_PATH);
+        File tempFile = new File(USERS_FILE_PATH + ".tmp");
+
+        try (Scanner scanner = new Scanner(inputFile);
+             BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile))) {
+
+            boolean userFound = false;
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] parts = line.split(":");
+
+                // Skip the user we want to remove
+                if (parts.length >= 1 && parts[0].equals(user)) {
+                    userFound = true;
+                    continue;
+                }
+
+                writer.write(line);
+                writer.newLine();
+            }
+
+            if (!userFound) {
+                tempFile.delete();
+                return true;
+            }
+
+            // Replace original file with the new one
+            if (!tempFile.renameTo(inputFile)) {
+                Files.move(tempFile.toPath(), inputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            return true;
+        } catch (IOException e) {
+            System.err.println("[USER STORAGE] Erro ao remover usuário: " + e.getMessage());
             return false;
         }
     }

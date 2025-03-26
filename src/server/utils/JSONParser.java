@@ -39,35 +39,85 @@ public class JSONParser {
 
     /**
      * Deserializes a JSON-formatted string to a map.
+     * Treats all values as simple strings without interpreting nested structures.
      *
      * @param json the JSON-formatted string
      * @return the map
      */
     public static Map<String, String> deserialize(String json) {
-        // Se estiver vazio
         if (json == null || json.isEmpty() || json.equals("{}")) {
             return Map.of();
         }
 
         Map<String, String> result = new HashMap<>();
-        // Remove as chaves {}
-        String[] pairs = json.substring(1, json.length() - 1).split(",");
+        String content = json.substring(1, json.length() - 1).trim();
 
-        // Itera sobre os pares
-        for (String pair : pairs) {
-            if (pair.isEmpty()) continue;
+        int i = 0;
+        while (i < content.length()) {
+            // Skip leading whitespace
+            while (i < content.length() && Character.isWhitespace(content.charAt(i))) {
+                i++;
+            }
 
-            int colonPos = pair.indexOf(':');
-            if (colonPos == -1) throw new IllegalArgumentException("Formato JSON inválido");
+            // Find key start (first quote)
+            if (i >= content.length() || content.charAt(i) != '"') break;
+            int keyStart = i;
 
-            // Pega a chave e o valor
-            String key = pair.substring(pair.indexOf('"') + 1, pair.lastIndexOf('"', colonPos));
-            String value = pair.substring(pair.indexOf('"', colonPos) + 1, pair.lastIndexOf('"'));
+            // Find key end (closing quote)
+            i = findClosingQuote(content, keyStart + 1);
+            if (i == -1) break;
+            String key = unescape(content.substring(keyStart + 1, i));
+            i++;
 
-            result.put(unescape(key), unescape(value));
+            // Find colon
+            while (i < content.length() && content.charAt(i) != ':') {
+                i++;
+            }
+            if (i >= content.length()) break;
+            i++;
+
+            // Skip whitespace after colon
+            while (i < content.length() && Character.isWhitespace(content.charAt(i))) {
+                i++;
+            }
+
+            // Find value start
+            if (i >= content.length() || content.charAt(i) != '"') break;
+            int valueStart = i;
+
+            // Find value end
+            i = findClosingQuote(content, valueStart + 1);
+            if (i == -1) break;
+            String value = unescape(content.substring(valueStart + 1, i));
+            i++;
+
+            result.put(key, value);
+
+            // Find next pair
+            while (i < content.length() && content.charAt(i) != ',') {
+                i++;
+            }
+            if (i < content.length()) i++;
         }
 
         return result;
+    }
+
+    /**
+     * Finds the closing quote of a quoted string.
+     *
+     * @param text the text
+     * @param start the index of the opening quote
+     * @return the index of the closing quote, or -1 if not found
+     */
+    private static int findClosingQuote(String text, int start) {
+        for (int i = start; i < text.length(); i++) {
+            // Found an unescaped quote
+            if (text.charAt(i) == '"' && (i == 0 || text.charAt(i-1) != '\\')) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -77,6 +127,7 @@ public class JSONParser {
      * @return the escaped string
      */
     private static String escape(String text) {
+        if (text == null) return "";
         return text.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
