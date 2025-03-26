@@ -106,19 +106,34 @@ public class NetworkManager {
     /**
      * Sends a request to the server to download files from a workspace.
      *
-     * @param workspace the workspace
+     * @param workspaceId the workspace id
      * @param files the files
      */
-    public void downloadFilesToWorkspace(String workspace, String[] files) {
+    public void downloadFilesToWorkspace(String workspaceId, String[] files) {
         BodyJSON body = new BodyJSON();
-        body.put("workspace", workspace);
+        body.put("workspaceId", workspaceId);
+        body.put("action", "verify");
 
-        String filesString = String.join(",", files);
-        body.put("files", filesString);
-
-        Response response = sendRequest(body, "downloadFilesToWorkspace");
+        Response response = sendRequest(body, "downloadfilefromworkspace");
         if (response != null) {
-            System.out.println("Resposta: " + response.getStatus());
+            StatusCode status = response.getStatus();
+            if (status != StatusCode.OK) {
+                System.out.println("Resposta: " + status);
+                return;
+            }
+        }
+
+        for (String file : files) {
+            try {
+                boolean status = sendFileToServer(file, workspaceId, in, out);
+                if (!status) {
+                    System.err.println("[CLIENT] Erro ao enviar ficheiro: " + file);
+                }
+
+                System.out.println("Resposta: (" + status + ") " + file);
+            } catch (IOException e) {
+                System.err.println("[CLIENT] Erro ao enviar ficheiro: " + e.getMessage());
+            }
         }
     }
 
@@ -209,6 +224,100 @@ public class NetworkManager {
         }
 
         return null;
+    }
+
+    private static boolean receiveFileFromServer(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+        // Step 1: Initialize the download
+        BodyJSON initBody = new BodyJSON();
+        initBody.put("action", "init");
+        initBody.put("fileName", fileName);
+        initBody.put("workspaceId", workspaceId);
+
+        Request initRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "downloadfilefromworkspace",
+                initBody
+        );
+
+        out.write(initRequest.toByteArray());
+        Response initResponse = Response.fromStream(in);
+        System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+
+        if (initResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao inicializar upload");
+            return false;
+        }
+
+        BodyJSON initResponseBody = initResponse.getBodyJSON();
+        int totalChunks = Integer.parseInt(initResponseBody.get("chunks"));
+        int fileSize = Integer.parseInt(initResponseBody.get("size"));
+        String fileId = initResponseBody.get("fileId");
+
+        // Step 2: Receive file chunks
+        try (FileOutputStream fileOut = new FileOutputStream(fileName)) {
+            for (int chunkId = 0; chunkId < totalChunks; chunkId++) {
+                BodyJSON chunkBody = new BodyJSON();
+                chunkBody.put("action", "chunk");
+                chunkBody.put("chunkId", String.valueOf(chunkId));
+                chunkBody.put("fileId", fileId);
+
+                Request chunkRequest = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.JSON,
+                        "downloadfilefromworkspace",
+                        chunkBody
+                );
+
+                out.write(chunkRequest.toByteArray());
+                Response chunkResponse = Response.fromStream(in);
+                if (!String.valueOf(chunkId).equals(chunkResponse.getHeader("CHUNK-ID"))) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    return false;
+                }
+
+                if (!fileId.equals(chunkResponse.getHeader("FILE-ID"))) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    return false;
+                }
+
+                System.out.println("[CLIENT] Resposta de chunk " + chunkId + ": " + chunkResponse);
+
+                if (chunkResponse.getStatus() != StatusCode.OK) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    return false;
+                }
+
+                BodyRaw chunkData = chunkResponse.getBodyRaw();
+                fileOut.write(chunkData.toBytes());
+            }
+        } catch (IOException e) {
+            System.err.println("[CLIENT] Erro ao receber ficheiro: " + e.getMessage());
+            return false;
+        }
+
+        // Step 3: Complete the download
+        BodyJSON completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        Request completeRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "downloadfilefromworkspace",
+                completeBody
+        );
+
+        out.write(completeRequest.toByteArray());
+        Response completeResponse = Response.fromStream(in);
+
+        if (completeResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar download!");
+            return false;
+        }
+
+        System.out.println("[CLIENT] Ficheiro recebido com sucesso!");
+        return true;
     }
 
     /**
