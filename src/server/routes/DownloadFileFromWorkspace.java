@@ -2,6 +2,7 @@ package server.routes;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -69,7 +70,6 @@ public class DownloadFileFromWorkspace implements RouteHandler{
     }
 
     private Response handleInitialization(Request request) {
-        // TODO Auto-generated method stub
         WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
         User user = request.getAuthenticatedUser();
         BodyJSON body = request.getBodyJSON();
@@ -137,43 +137,44 @@ public class DownloadFileFromWorkspace implements RouteHandler{
             return NetworkUtils.createErrorResponse(request,
                     "chunkId inválido, esperado: " + session.nextExpectedChunk);
         }
-       
+
         // Step 2: Send file chunks
         File file = new File(session.filePath);
         try (FileInputStream fileIn = new FileInputStream(file)) {
             byte[] buffer = new byte[CHUNK_SIZE];
 
-            //COPY CHUNK_id th TO BUFFER
-            int bytesRead = fileIn.read(buffer);
-            if (bytesRead == -1) {
-                session.isComplete = true;
-                downloadSessions.remove(fileId);
-                return NetworkUtils.createErrorResponse(request, "Download concluído");
-            }
-            chunkData = new byte[bytesRead];
-            System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
-           
+            // 1. Get the file
+            // 2. Get the right chunk to send to the client (chunkId * CHUNK_SIZE), starting from 0
+            // 3. Send the chunk to the client
 
+            long offset = (long) chunkId * CHUNK_SIZE;
+            fileIn.skip(offset);
+            int bytesRead = fileIn.read(buffer);
+            byte[] chunkData = new byte[bytesRead];
+            System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
+
+            int totalChunks = (int) Math.ceil((double) file.length() / CHUNK_SIZE);
+            session.nextExpectedChunk++;
+            if (session.nextExpectedChunk == totalChunks) {
+                session.isComplete = true;
+            }
             BodyRaw chunkBody = new BodyRaw(chunkData);
-            Request chunkRequest = new Request(
-                    NetworkUtils.randomUUID(),
+            Response chunkResponse = new Response(
+                    request.getUUID(),
+                    StatusCode.OK,
                     BodyFormat.RAW,
-                    "uploadfiletoworkspace",
-                    chunkBody
-            );
-            chunkRequest.addHeader("FILE-ID", fileId);
-            chunkRequest.addHeader("CHUNK-ID", String.valueOf(chunkId));
-            chunkRequest.addHeader("TYPE", "CHUNK");
+                    chunkBody);
+            chunkResponse.addHeader("FILE-ID", fileId);
+            chunkResponse.addHeader("CHUNK-ID", String.valueOf(chunkId));
+            chunkResponse.addHeader("TYPE", "CHUNK");
 
             System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            }   
-                 // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'handleChunkData'");
+            return chunkResponse;
+        } catch (IOException e) {
+            return NetworkUtils.createErrorResponse(request, "Erro ao enviar chunk");
+        }
     }
-
 
     /**
      * Represents a file upload session.
@@ -220,7 +221,4 @@ public class DownloadFileFromWorkspace implements RouteHandler{
             return ownerUserId.equals(user.getUserId());
         }
     }
-
-
-
 }
