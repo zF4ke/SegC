@@ -58,8 +58,8 @@ public class Router {
                 return new CreateWorkspaceHandler().handle(request);
             case "addusertoworkspace":
                 return new AddUserToWorkspaceHandler().handle(request);
-//            case "uploadfiletoworkspace":
-//                return new UploadFileToWorkspaceHandler().handle(request);
+            case "uploadfiletoworkspace":
+                return new UploadFileToWorkspaceHandler().handle(request);
 //            case "downloadfilefromworkspace":
 //                return DownloadFileFromWorkspaceHandler.handle(request);
 //            case "removefilefromworkspace":
@@ -68,8 +68,6 @@ public class Router {
                 return new ListWorkspacesHandler().handle(request);
             case "listworkspacefiles":
                 return new ListWorkspaceFilesHandler().handle(request);
-            case "fileupload":
-                return new FileUploadHandler().handle(request);
             default:
                 BodyJSON body = new BodyJSON();
                 body.put("error", "Rota não encontrada");

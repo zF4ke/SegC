@@ -1,6 +1,8 @@
 package server.routes;
 
+import server.WorkspaceManager;
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 import java.io.File;
@@ -12,16 +14,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 
-public class FileUploadHandler implements RouteHandler {
+public class UploadFileToWorkspaceHandler implements RouteHandler {
     private static final String TEMP_DIR = "data/temp_files";
     private static final Map<String, FileUploadSession> uploadSessions = new HashMap<>();
 
-    /**
-     * Creates a new file upload handler.
-     */
-    public FileUploadHandler() {
+    public UploadFileToWorkspaceHandler() {
         try {
             Files.createDirectories(Paths.get(TEMP_DIR));
             this.cleanupOrphanedFiles();
@@ -38,6 +38,8 @@ public class FileUploadHandler implements RouteHandler {
                 String action = body.get("action");
 
                 switch (action) {
+                    case "verify":
+                        return handlePermVerification(request);
                     case "init":
                         return handleInitialization(request);
                     case "complete":
@@ -58,31 +60,62 @@ public class FileUploadHandler implements RouteHandler {
     }
 
     /**
+     * Handles the permission verification for a file upload.
+     *
+     * @param request the request
+     * @return the response
+     */
+    private Response handlePermVerification(Request request) {
+        User user = request.getAuthenticatedUser();
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        BodyJSON body = request.getBodyJSON();
+        String workspaceId = body.get("workspaceId");
+
+        if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
+        }
+
+        BodyJSON responseBody = new BodyJSON();
+        responseBody.put("message", "O utilizador tem permissão para fazer upload de ficheiros");
+
+        return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
+        }
+
+    /**
      * Handles the initialization of a file upload.
      *
      * @param request the request
      * @return the response
      */
     private Response handleInitialization(Request request) {
+        User user = request.getAuthenticatedUser();
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
         BodyJSON body = request.getBodyJSON();
+        String workspaceId = body.get("workspaceId");
+
+        if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
+        }
 
         String fileName = body.get("fileName");
         long fileSize = Long.parseLong(body.get("size"));
         int chunks = Integer.parseInt(body.get("chunks"));
-        User owner = request.getAuthenticatedUser();
 
-        if (fileName == null || fileSize < 0 || chunks <= 0) {
+        if (fileName == null || fileSize < 0 || chunks <= 0 || !InputUtils.isValidFilename(fileName)) {
             return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos");
         }
 
-        if (owner == null) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
-        }
-
-        String fileId = java.util.UUID.randomUUID().toString();
+        String fileId = UUID.randomUUID().toString();
         String tempFilePath = TEMP_DIR + File.separator + fileId;
 
-        FileUploadSession session = new FileUploadSession(fileId, fileName, fileSize, tempFilePath, owner.getUserId());
+        FileUploadSession session = new FileUploadSession(
+                fileId,
+                fileName,
+                fileSize,
+                tempFilePath,
+                user.getUserId(),
+                workspaceId
+        );
         uploadSessions.put(fileId, session);
 
         BodyJSON responseBody = new BodyJSON();
@@ -101,13 +134,12 @@ public class FileUploadHandler implements RouteHandler {
     private Response handleChunkData(Request request) {
         String fileId = request.getHeader("FILE-ID");
         int chunkId = Integer.parseInt(request.getHeader("CHUNK-ID"));
-        User owner = request.getAuthenticatedUser();
+        User user = request.getAuthenticatedUser();
 
         if (fileId == null) {
             return NetworkUtils.createErrorResponse(request, "FILE-ID não fornecido");
         }
-
-        if (owner == null) {
+        if (user == null) {
             return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
         }
 
@@ -115,11 +147,11 @@ public class FileUploadHandler implements RouteHandler {
         if (session == null) {
             return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
         }
-
-        if (!session.isOwner(owner)) {
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        if (!session.isOwner(user) ||
+                !workspaceManager.isUserInWorkspace(user.getUserId(), session.workspaceId)) {
             return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
         }
-
         if (session.isComplete) {
             return NetworkUtils.createErrorResponse(request, "Upload já foi concluído");
         }
@@ -159,21 +191,21 @@ public class FileUploadHandler implements RouteHandler {
         BodyJSON body = request.getBodyJSON();
         String fileId = body.get("fileId");
 
+        User user = request.getAuthenticatedUser();
         if (fileId == null) {
             return NetworkUtils.createErrorResponse(request, "fileId não fornecido");
+        }
+        if (user == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
         }
 
         FileUploadSession session = uploadSessions.get(fileId);
         if (session == null) {
             return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
         }
-
-        User owner = request.getAuthenticatedUser();
-        if (owner == null) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
-        }
-
-        if (!session.isOwner(owner)) {
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        if (!session.isOwner(user) ||
+                !workspaceManager.isUserInWorkspace(user.getUserId(), session.workspaceId)) {
             return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
         }
 
@@ -184,6 +216,20 @@ public class FileUploadHandler implements RouteHandler {
             BodyJSON responseBody = new BodyJSON();
             responseBody.put("fileId", fileId);
             responseBody.put("status", "file uploaded");
+
+            // move file to workspace directory
+            File file = new File(session.tempFilePath);
+            String fileName = session.fileName;
+
+            boolean success = workspaceManager.uploadFile(user, session.workspaceId, file, fileName);
+            if (!success) {
+                return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro para o workspace");
+            }
+
+            uploadSessions.remove(fileId);
+
+            // remove temp file just in case
+            Files.deleteIfExists(file.toPath());
 
             return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
         } catch (Exception e) {
@@ -243,19 +289,22 @@ public class FileUploadHandler implements RouteHandler {
         private final RandomAccessFile file;
         private boolean isComplete = false;
         private String ownerUserId = null;
+        private String workspaceId = null;
 
         public FileUploadSession(
                 String fileId,
                 String fileName,
                 long totalSize,
                 String tempFilePath,
-                String ownerUserId
+                String ownerUserId,
+                String workspaceId
         ) {
             this.fileId = fileId;
             this.fileName = fileName;
             this.totalSize = totalSize;
             this.tempFilePath = tempFilePath;
             this.ownerUserId = ownerUserId;
+            this.workspaceId = workspaceId;
 
             try {
                 this.file = new RandomAccessFile(tempFilePath, "rw");
@@ -277,69 +326,5 @@ public class FileUploadHandler implements RouteHandler {
 
             return ownerUserId.equals(user.getUserId());
         }
-
-        /**
-         * Gets the file ID.
-         *
-         * @return the file ID
-         */
-        public String getFileId() {
-            return fileId;
-        }
-
-        /**
-         * Gets the file name.
-         *
-         * @return the file name
-         */
-        public String getFileName() {
-            return fileName;
-        }
-
-        /**
-         * Gets the total size of the file.
-         *
-         * @return the total size
-         */
-        public long getTotalSize() {
-            return totalSize;
-        }
-
-        /**
-         * Gets the path to the temporary file.
-         *
-         * @return the path to the temporary file
-         */
-        public String getTempFilePath() {
-            return tempFilePath;
-            }
-    }
-
-    /**
-     * Gets an upload session by file ID.
-     *
-     * @param fileId the file ID
-     * @return the upload session
-     */
-    public static FileUploadSession getUploadSession(String fileId) {
-        return uploadSessions.get(fileId);
-    }
-
-    /**
-     * Removes an upload session by file ID.
-     *
-     * @param fileId the file ID
-     */
-    public static void removeUploadSession(String fileId) {
-        uploadSessions.remove(fileId);
-    }
-
-    /**
-     * Gets the temporary directory for file uploads.
-     *
-     * @return the temporary directory
-     */
-    public static String getTempDir() {
-        return TEMP_DIR;
     }
 }

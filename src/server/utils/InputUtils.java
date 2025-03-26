@@ -18,7 +18,7 @@ public class InputUtils {
      * @return true if the filename is valid, false otherwise
      */
     public static boolean isValidFilename(String input) {
-        return input.matches("^[a-zA-Z0-9]+\\.[a-zA-Z]+$");
+        return input.matches("^[a-zA-Z0-9]+\\.[a-zA-Z0-9]+$");
     }
 
     /**

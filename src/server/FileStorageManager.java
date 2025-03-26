@@ -245,19 +245,34 @@ public class FileStorageManager {
         return workspaceDir.list();
     }
 
-    public boolean[] uploadFiles(String workspace, String[] filePaths) { 
-        boolean[] uploaded = new boolean[filePaths.length];
+    /**
+     * Upload a file to a workspace.
+     *
+     * @param workspaceId the workspace ID
+     * @param file the file to upload
+     * @param fileName the name of the file
+     * @return true if the file was uploaded, false otherwise
+     */
+    public boolean uploadFile(String workspaceId, File file, String fileName) {
         try {
-            Path workSpacePath = Paths.get(WORKSPACES_DIR_PATH + workspace);
-            for (int i = 0; i < filePaths.length; i++) {
-                Files.move(Paths.get(filePaths[i]), workSpacePath, StandardCopyOption.REPLACE_EXISTING);
-                uploaded[i] = true;
+            // workspace path
+            Path workspacePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId);
+            if (!Files.exists(workspacePath)) {
+                System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+                return false;
             }
-        
+
+            // file path
+            Path filePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId + "/" + fileName);
+
+            // move file to workspace
+            Files.move(file.toPath(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            return true;
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("[FILE STORAGE] Erro ao fazer upload do arquivo: " + e.getMessage());
+            return false;
         }
-        return uploaded;
     }
 
     public String[] downloadFiles(String workspace, String[] fileNames) {

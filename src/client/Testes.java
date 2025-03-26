@@ -102,8 +102,8 @@ public class Testes {
         File file = new File("file.txt");
 
         // Send file.txt to the server using the unified fileTransfer route
-        String tempFileId = sendFileToServer(file.getPath(), in, out);
-        System.out.println("[CLIENT] File uploaded with temporary ID: " + tempFileId);
+        //String tempFileId = sendFileToServer(file.getPath(), in, out);
+        //System.out.println("[CLIENT] File uploaded with temporary ID: " + tempFileId);
 
         // Now use the workspace upload route that will process the temporary file
 //        BodyJSON workspaceRequest = new BodyJSON();
@@ -141,8 +141,8 @@ public class Testes {
         File file2 = new File("spongepls.mp3");
 
         // Send spongepls.mp3 to the server using the unified fileTransfer route
-        String tempFileId2 = sendFileToServer(file2.getPath(), in, out);
-        System.out.println("[CLIENT] File uploaded with temporary ID: " + tempFileId2);
+        //String tempFileId2 = sendFileToServer(file2.getPath(), in, out);
+        //System.out.println("[CLIENT] File uploaded with temporary ID: " + tempFileId2);
 //
 //        // Now use the workspace upload route that will process the temporary file
 //        BodyJSON workspaceRequest2 = new BodyJSON();
@@ -170,106 +170,6 @@ public class Testes {
         testFooter();
         /* ============================================================================= */
 
-    }
-
-    private static String sendFileToServer(String filePath, DataInputStream in, DataOutputStream out) throws IOException {
-        File file = new File(filePath);
-        if (!file.exists()) {
-            System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
-            return null;
-        }
-
-        // Step 1: Initialize the upload
-        System.out.println("[CLIENT] Iniciando envio do ficheiro: " + file.getName());
-
-        BodyJSON initBody = new BodyJSON();
-        initBody.put("action", "init");
-        initBody.put("fileName", file.getName());
-        initBody.put("size", String.valueOf(file.length()));
-
-        int chunkSize = 1024 * 64; // 64KB chunks
-        int totalChunks = (int) Math.ceil((double) file.length() / chunkSize);
-        initBody.put("chunks", String.valueOf(totalChunks));
-
-        Request initRequest = new Request(
-                NetworkUtils.randomUUID(),
-                BodyFormat.JSON,
-                "fileupload",
-                initBody
-        );
-
-        out.write(initRequest.toByteArray());
-        Response initResponse = Response.fromStream(in);
-        System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
-
-        if (initResponse.getStatus() != StatusCode.OK) {
-            System.err.println("[CLIENT] Erro ao inicializar upload");
-            return null;
-        }
-
-        String fileId = ((BodyJSON) initResponse.getBody()).get("fileId");
-
-        // Step 2: Send file chunks
-        try (FileInputStream fileIn = new FileInputStream(file)) {
-            byte[] buffer = new byte[chunkSize];
-            int chunkId = 0;
-            int bytesRead;
-
-            while ((bytesRead = fileIn.read(buffer)) > 0) {
-                byte[] chunkData;
-                if (bytesRead < buffer.length) {
-                    chunkData = new byte[bytesRead];
-                    System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
-                } else {
-                    chunkData = buffer;
-                }
-
-                BodyRaw chunkBody = new BodyRaw(chunkData);
-                Request chunkRequest = new Request(
-                        NetworkUtils.randomUUID(),
-                        BodyFormat.RAW,
-                        "fileupload",
-                        chunkBody
-                );
-                chunkRequest.addHeader("FILE-ID", fileId);
-                chunkRequest.addHeader("CHUNK-ID", String.valueOf(chunkId));
-                chunkRequest.addHeader("TYPE", "CHUNK");
-
-                System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
-                out.write(chunkRequest.toByteArray());
-
-                Response chunkResponse = Response.fromStream(in);
-                if (chunkResponse.getStatus() != StatusCode.OK) {
-                    System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
-                    return null;
-                }
-
-                chunkId++;
-            }
-        }
-
-        // Step 3: Complete the upload
-        BodyJSON completeBody = new BodyJSON();
-        completeBody.put("action", "complete");
-        completeBody.put("fileId", fileId);
-
-        Request completeRequest = new Request(
-                NetworkUtils.randomUUID(),
-                BodyFormat.JSON,
-                "fileupload",
-                completeBody
-        );
-
-        out.write(completeRequest.toByteArray());
-        Response completeResponse = Response.fromStream(in);
-
-        if (completeResponse.getStatus() != StatusCode.OK) {
-            System.err.println("[CLIENT] Erro ao finalizar upload");
-            return null;
-        }
-
-        System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
-        return fileId;
     }
 
     private static void testHeader(String name) {

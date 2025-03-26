@@ -3,9 +3,7 @@ package client;
 import server.models.*;
 import server.utils.NetworkUtils;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 public class NetworkManager {
     private final DataInputStream in;
@@ -49,12 +47,12 @@ public class NetworkManager {
      * Sends a request to the server to add a user to a workspace.
      *
      * @param user the user
-     * @param workspace the workspace
+     * @param workspaceId the workspace ID
      */
-    public void addUserToWorkspace(String user, String workspace) {
+    public void addUserToWorkspace(String user, String workspaceId) {
         BodyJSON body = new BodyJSON();
         body.put("user", user);
-        body.put("workspaceId", workspace);
+        body.put("workspaceId", workspaceId);
 
         Response response = sendRequest(body, "addusertoworkspace");
         if (response != null) {
@@ -73,19 +71,35 @@ public class NetworkManager {
     /**
      * Sends a request to the server to upload files to a workspace.
      *
-     * @param workspace the workspace
+     * @param workspaceId the workspace ID
      * @param files the files
      */
-    public void uploadFilesToWorkspace(String workspace, String[] files) {
-        BodyJSON body = new BodyJSON();
-        body.put("workspace", workspace);
+    public void uploadFilesToWorkspace(String workspaceId, String[] files) {
+        // 1. check if the user has permission to upload files to the workspace
+        BodyJSON verifyBody = new BodyJSON();
+        verifyBody.put("action", "verify");
+        verifyBody.put("workspaceId", workspaceId);
 
-        String filesString = String.join(",", files); // Use split to get the files back
-        body.put("files", filesString);
+        Response verifyResponse = sendRequest(verifyBody, "uploadfiletoworkspace");
+        if (verifyResponse != null) {
+            if (verifyResponse.getStatus() != StatusCode.OK) {
+                System.out.println("Resposta: (" + verifyResponse.getStatus() + ") " + verifyResponse.getBodyJSON().get("message"));
+                return;
+            }
+        }
 
-        Response response = sendRequest(body, "uploadFilesToWorkspace");
-        if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
+        // 2. send files to the server
+        for (String file : files) {
+            try {
+                boolean status = sendFileToServer(file, workspaceId, in, out);
+                if (!status) {
+                    System.err.println("[CLIENT] Erro ao enviar ficheiro: " + file);
+                }
+
+                System.out.println("Resposta: (" + status + ") " + file);
+            } catch (IOException e) {
+                System.err.println("[CLIENT] Erro ao enviar ficheiro: " + e.getMessage());
+            }
         }
     }
 
@@ -143,7 +157,6 @@ public class NetworkManager {
                 System.out.println("Resposta: (" + response.getStatus() + ") " + workspaceIds);
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
-                e.printStackTrace();
             }
         }
     }
@@ -151,11 +164,11 @@ public class NetworkManager {
     /**
      * Sends a request to the server to list the files in a workspace.
      *
-     * @param workspace the workspace
+     * @param workspaceId the workspace ID
      */
-    public void listFilesWorkspace(String workspace) {
+    public void listFilesWorkspace(String workspaceId) {
         BodyJSON body = new BodyJSON();
-        body.put("workspaceId", workspace);
+        body.put("workspaceId", workspaceId);
 
         Response response = sendRequest(body, "listworkspacefiles");
         if (response != null) {
@@ -196,5 +209,114 @@ public class NetworkManager {
         }
 
         return null;
+    }
+
+    /**
+     * Sends a file to the server.
+     *
+     * @param filePath the file path
+     * @param in the input stream
+     * @param out the output stream
+     */
+    private static boolean sendFileToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+        File file = new File(filePath);
+        if (!file.exists()) {
+            System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
+            return false;
+        }
+
+        // Step 1: Initialize the upload
+        System.out.println("[CLIENT] Iniciando envio do ficheiro: " + file.getName());
+
+        BodyJSON initBody = new BodyJSON();
+        initBody.put("action", "init");
+        initBody.put("workspaceId", workspaceId);
+        initBody.put("fileName", file.getName());
+        initBody.put("size", String.valueOf(file.length()));
+
+        int chunkSize = 1024 * 64; // 64KB chunks
+        int totalChunks = (int) Math.ceil((double) file.length() / chunkSize);
+        initBody.put("chunks", String.valueOf(totalChunks));
+
+        Request initRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "uploadfiletoworkspace",
+                initBody
+        );
+
+        out.write(initRequest.toByteArray());
+        Response initResponse = Response.fromStream(in);
+        System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+
+        if (initResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao inicializar upload");
+            return false;
+        }
+
+        BodyJSON initResponseBody = initResponse.getBodyJSON();
+        String fileId = initResponseBody.get("fileId");
+
+        // Step 2: Send file chunks
+        try (FileInputStream fileIn = new FileInputStream(file)) {
+            byte[] buffer = new byte[chunkSize];
+            int chunkId = 0;
+            int bytesRead;
+
+            while ((bytesRead = fileIn.read(buffer)) > 0) {
+                byte[] chunkData;
+                if (bytesRead < buffer.length) {
+                    chunkData = new byte[bytesRead];
+                    System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
+                } else {
+                    chunkData = buffer;
+                }
+
+                BodyRaw chunkBody = new BodyRaw(chunkData);
+                Request chunkRequest = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.RAW,
+                        "uploadfiletoworkspace",
+                        chunkBody
+                );
+                chunkRequest.addHeader("FILE-ID", fileId);
+                chunkRequest.addHeader("CHUNK-ID", String.valueOf(chunkId));
+                chunkRequest.addHeader("TYPE", "CHUNK");
+
+                System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
+                out.write(chunkRequest.toByteArray());
+
+                Response chunkResponse = Response.fromStream(in);
+                if (chunkResponse.getStatus() != StatusCode.OK) {
+                    System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
+                    return false;
+                }
+
+                chunkId++;
+            }
+        }
+
+        // Step 3: Complete the upload
+        BodyJSON completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        Request completeRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "uploadfiletoworkspace",
+                completeBody
+        );
+
+        out.write(completeRequest.toByteArray());
+        Response completeResponse = Response.fromStream(in);
+
+        if (completeResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar upload");
+            return false;
+        }
+
+        System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
+        return true;
     }
 }

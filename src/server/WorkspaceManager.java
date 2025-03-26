@@ -5,6 +5,8 @@ import server.models.User;
 import server.models.Workspace;
 import server.utils.InputUtils;
 
+import java.io.File;
+
 public class WorkspaceManager {
     private static WorkspaceManager INSTANCE;
     private final FileStorageManager fsm;
@@ -95,17 +97,17 @@ public class WorkspaceManager {
         return ws.hasMember(userId);
     }
 
-    public boolean[] uploadFile(User user, String workspaceId, String[] filePaths) {
+    public boolean uploadFile(User user, String workspaceId, File file, String fileName) {
         Workspace ws = fsm.getWorkspace(workspaceId);
         if (ws == null) {
-            return new boolean[filePaths.length];
+            return false;
         }
 
         if (ws.hasMember(user.getUserId())) {
-            return fsm.uploadFiles(workspaceId, filePaths);
+            return fsm.uploadFile(workspaceId, file, fileName);
         }
 
-        return new boolean[filePaths.length]; //all false default ok
+        return false;
     }
 
 //    public String[] downloadFile(String user, String workspace, String[] filePaths) {
