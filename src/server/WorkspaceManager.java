@@ -173,7 +173,7 @@ public class WorkspaceManager {
         }
 
         if (ws.hasMember(userId)) {
-            boolean success = fsm.deleteFile(workspaceId, fileName);
+            boolean success = fsm.deleteFile(fileName, workspaceId);
             if (success) {
                 return StatusCode.OK;
             } else {

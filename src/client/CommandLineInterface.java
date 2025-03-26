@@ -53,7 +53,7 @@ public class CommandLineInterface {
             String[] commands = input.split("\n");
 
             for (String command : commands) {
-                String[] commandParts = command.split(" ");
+                String[] commandParts = command.trim().split(" ");
                 String commandAction = commandParts[0].toUpperCase();
                 if(!InputUtils.isAlfaNumeric(commandAction)) {
                     System.err.println("[CLIENT] Comando invalido: " + commandAction);

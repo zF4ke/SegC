@@ -111,14 +111,21 @@ public class FileStorageManager {
         }
 
         try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(WORKSPACES_FILE_PATH, true))) {
+            //creating the dir for the workspace
+            Files.createDirectory(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
+
             //adding the workspace to the workspace.txt file
             String newLine = workspaceId + ":" + userId + ":" + userId;
             bufferedWriter.write(newLine);
             bufferedWriter.newLine();
-
-            //creating the dir for the workspace
-            Files.createDirectory(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
         } catch (IOException e) {
+            // Remove dir if it was created
+            try {
+                Files.delete(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
+            } catch (IOException ex) {
+                System.out.println("[FILE STORAGE] Erro ao deletar workspace: " + ex.getMessage());
+            }
+
             System.out.println("[FILE STORAGE] Erro ao criar workspace: " + e.getMessage());
             return false;
         }

@@ -172,8 +172,6 @@ public class NetworkManager {
     public void listWorkspaces() {
         Response response = sendRequest(new BodyJSON(), "listworkspaces");
         if (response != null) {
-            System.out.println("Resposta:" + response.getStatus());
-
             try {
                 BodyJSON responseBody = response.getBodyJSON();
                 String workspaceIds = responseBody.get("workspaceIds");
@@ -236,6 +234,14 @@ public class NetworkManager {
         return null;
     }
 
+    /**
+     * Receives a file from the server.
+     *
+     * @param fileName the file name
+     * @param workspaceId the workspace ID
+     * @param in the input stream
+     * @param out the output stream
+     */
     private static boolean receiveFileFromServer(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         // Step 1: Initialize the download
         BodyJSON initBody = new BodyJSON();
