@@ -221,7 +221,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             File file = new File(session.tempFilePath);
             String fileName = session.fileName;
 
-            boolean success = workspaceManager.uploadFile(user, session.workspaceId, file, fileName);
+            boolean success = workspaceManager.uploadFile(user.getUserId(), session.workspaceId, file, fileName);
             if (!success) {
                 return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro para o workspace");
             }

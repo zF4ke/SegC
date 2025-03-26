@@ -142,19 +142,27 @@ public class NetworkManager {
     /**
      * Sends a request to the server to remove files from a workspace.
      *
-     * @param workspace the workspace
+     * @param workspaceId the workspace id
      * @param files the files
      */
-    public void removeFilesFromWorkspace(String workspace, String[] files) {
-        BodyJSON body = new BodyJSON();
-        body.put("workspace", workspace);
+    public void removeFilesFromWorkspace(String workspaceId, String[] files) {
+        for (String file : files) {
+            BodyJSON body = new BodyJSON();
+            body.put("workspaceId", workspaceId);
+            body.put("fileName", file);
 
-        String filesString = String.join(",", files);
-        body.put("files", filesString);
+            Response response = sendRequest(body, "removefilefromworkspace");
+            if (response != null) {
+                try {
+                    BodyJSON responseBody = response.getBodyJSON();
+                    String message = responseBody.get("message");
+                    if (message == null) message = "";
 
-        Response response = sendRequest(body, "removeFilesFromWorkspace");
-        if (response != null) {
-            System.out.println("Resposta: " + response.getStatus());
+                    System.out.println("Resposta: (" + response.getStatus() + ") " + message);
+                } catch (Exception e) {
+                    System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+                }
+            }
         }
     }
 

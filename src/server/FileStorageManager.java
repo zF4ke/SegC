@@ -282,6 +282,9 @@ public class FileStorageManager {
      */
     public boolean isFileInWorkspace(String fileName, String workspaceId) {
         File file = getFile(fileName, workspaceId);
+        if (file == null) {
+            return false;
+        }
         return file.exists();
     }
 
@@ -293,9 +296,30 @@ public class FileStorageManager {
      * @return the file if it exists, null otherwise
      */
     public File getFile(String fileName, String workspaceId) {
-        String dir = WORKSPACES_DIR_PATH + workspaceId;
-        File file = new File(dir, fileName);
-        return file;
+    if (fileName == null || workspaceId == null) {
+        return null;
+    }
+    String dir = WORKSPACES_DIR_PATH + workspaceId;
+    return new File(dir, fileName);
+}
+
+    /**
+     * Delete a file from a workspace.
+     *
+     * @param fileName the name of the file
+     * @param workspaceId the workspace ID
+     * @return true if the file was deleted, false otherwise
+     */
+    public boolean deleteFile(String fileName, String workspaceId) {
+        File file = getFile(fileName, workspaceId);
+        System.out.println("[FILE STORAGE] Delete do arquivo: " + fileName);
+        System.out.println("workspaceid: " + workspaceId);
+        System.out.println("file:" + file.getPath());
+        if (file == null) {
+            System.out.println("teste1 fudeu");
+            return false;
+        }
+        return file.delete();
     }
 
 }

@@ -97,13 +97,13 @@ public class WorkspaceManager {
         return ws.hasMember(userId);
     }
 
-    public boolean uploadFile(User user, String workspaceId, File file, String fileName) {
+    public boolean uploadFile(String userId, String workspaceId, File file, String fileName) {
         Workspace ws = fsm.getWorkspace(workspaceId);
         if (ws == null) {
             return false;
         }
 
-        if (ws.hasMember(user.getUserId())) {
+        if (ws.hasMember(userId)) {
             return fsm.uploadFile(workspaceId, file, fileName);
         }
 
@@ -155,5 +155,32 @@ public class WorkspaceManager {
      */
     public File getFile(String fileName, String workspaceId) {
         return fsm.getFile(fileName, workspaceId);
+    }
+
+    /**
+     * Removes a file from the workspace
+     *
+     * @param userId the id of the user
+     * @param workspaceId the id of the workspace
+     * @param fileName the name of the file
+     * @return StatusCode.OK if the file was removed, StatusCode.NOK if the file could not be removed, StatusCode.NOWS
+     * if the workspace does not exist, StatusCode.NOPERM if the user does not have permission to remove the file
+     */
+    public StatusCode removeFileFromWorkspace(String userId, String workspaceId, String fileName) {
+        Workspace ws = fsm.getWorkspace(workspaceId);
+        if (ws == null) {
+            return StatusCode.NOWS;
+        }
+
+        if (ws.hasMember(userId)) {
+            boolean success = fsm.deleteFile(workspaceId, fileName);
+            if (success) {
+                return StatusCode.OK;
+            } else {
+                return StatusCode.NOK;
+            }
+        } else {
+            return StatusCode.NOPERM;
+        }
     }
 }

@@ -62,8 +62,8 @@ public class Router {
                 return new UploadFileToWorkspaceHandler().handle(request);
             case "downloadfilefromworkspace":
                 return new DownloadFileFromWorkspaceHandler().handle(request);
-//            case "removefilefromworkspace":
-//                return new RemoveFileFromWorkspaceHandler().handle(request);
+            case "removefilefromworkspace":
+                return new RemoveFileFromWorkspaceHandler().handle(request);
             case "listworkspaces":
                 return new ListWorkspacesHandler().handle(request);
             case "listworkspacefiles":
