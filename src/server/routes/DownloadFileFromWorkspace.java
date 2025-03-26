@@ -33,7 +33,9 @@ public class DownloadFileFromWorkspace implements RouteHandler{
                     case "init":
                         return handleInitialization(request);
                     case "chunk":
-                    return handleChunkData(request);
+                        return handleChunkData(request);
+                    case "complete":
+                        return handleComplete(request);
 
                     default:
                         return NetworkUtils.createErrorResponse(request, "Ação inválida");
@@ -175,6 +177,45 @@ public class DownloadFileFromWorkspace implements RouteHandler{
             return NetworkUtils.createErrorResponse(request, "Erro ao enviar chunk");
         }
     }
+
+    private Response handleComplete(Request request) {
+        BodyJSON body = request.getBodyJSON();
+        String fileId = body.get("fileId");
+        User user = request.getAuthenticatedUser();
+
+        if (fileId == null) {
+            return NetworkUtils.createErrorResponse(request, "FILE-ID não fornecido");
+        }
+        if (user == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
+        }
+        
+        FileDownloadSession session = downloadSessions.get(fileId);
+        if (session == null) {
+            return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
+        }
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        if (!session.isOwner(user) ||
+                !workspaceManager.isUserInWorkspace(user.getUserId(), session.workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
+        }
+
+        BodyJSON completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        session.isComplete = true;
+        downloadSessions.remove(fileId);
+
+        return new Response(
+                request.getUUID(),
+                StatusCode.OK,
+                BodyFormat.JSON,
+                completeBody);
+
+    }
+
+
 
     /**
      * Represents a file upload session.
