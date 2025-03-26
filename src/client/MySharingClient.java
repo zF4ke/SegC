@@ -165,7 +165,7 @@ public class MySharingClient {
                 this.out.write(request.toByteArray());
                 response = Response.fromStream(in);
 
-                System.out.println("[CLIENT] Resposta Segunda Tentativa: " + response);
+                //System.out.println("[CLIENT] Resposta Segunda Tentativa: " + response);
 
                 return OK_CODES.contains(response.getStatus());
             }
