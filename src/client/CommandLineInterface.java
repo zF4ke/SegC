@@ -4,6 +4,8 @@ import server.utils.InputUtils;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -11,6 +13,7 @@ import java.util.Scanner;
 public class CommandLineInterface {
     private final NetworkManager networkManager;
     private final Scanner scanner;
+    private final Socket socket;
 
     /**
      * Create a new command line interface.
@@ -18,9 +21,10 @@ public class CommandLineInterface {
      * @param in the input stream
      * @param out the output stream
      */
-    public CommandLineInterface(DataInputStream in, DataOutputStream out) {
+    public CommandLineInterface(Socket socket, DataInputStream in, DataOutputStream out) {
         this.networkManager = new NetworkManager(in, out);
         this.scanner = new Scanner(System.in);
+        this.socket = socket;
 
         // Shutdown hook to close gracefully
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -105,7 +109,7 @@ public class CommandLineInterface {
                             String[] validFiles = validFiles(files);
                             if (validFiles.length == 0) {break;}
 
-                            networkManager.downloadFilesToWorkspace(workspace, files);
+                            networkManager.downloadFilesFromWorkspace(workspace, files);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: DW");
                         }
@@ -192,7 +196,7 @@ public class CommandLineInterface {
     for (String file : files) {
         if (!InputUtils.isValidFilename(file)) {
             System.err.println("[CLIENT] Nome de ficheiro invalido: " + file);
-            System.err.println("[CLIENT] Ficheiro nao enviado para o servidor.");
+            //System.err.println("[CLIENT] Ficheiro nao enviado para o servidor.");
             filesToUpload--;
         } else {
             validFilesList.add(file);

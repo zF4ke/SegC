@@ -273,32 +273,25 @@ public class FileStorageManager {
         }
     }
 
-    public String[] downloadFiles(String workspace, String[] fileNames) {
-        String[] paths = new String[fileNames.length];
-        for (int i = 0; i < fileNames.length; i++) {
-            Path path = Paths.get(WORKSPACES_DIR_PATH + workspace + "/" + fileNames[i]);
-            if (Files.exists(path)) {
-                paths[i] = path.toString();
-            }
-        }
-        return paths;
-    }
-
-    public boolean [] removeFiles(String workspace, String[] fileNames) {
-        boolean[] filesRemoved = new boolean[fileNames.length];
-        for (int i = 0; i < fileNames.length; i++) {
-            File file = new File(workspace + fileNames[i]);
-            filesRemoved[i] = file.delete();
-        }
-        
-        return filesRemoved;
-    }
-
+    /**
+     * Check if a file is in a workspace.
+     *
+     * @param fileName the name of the file
+     * @param workspaceId the workspace ID
+     * @return true if the file is in the workspace, false otherwise
+     */
     public boolean isFileInWorkspace(String fileName, String workspaceId) {
         File file = getFile(fileName, workspaceId);
         return file.exists();
     }
 
+    /**
+     * Get a file from a workspace.
+     *
+     * @param fileName the name of the file
+     * @param workspaceId the workspace ID
+     * @return the file if it exists, null otherwise
+     */
     public File getFile(String fileName, String workspaceId) {
         String dir = WORKSPACES_DIR_PATH + workspaceId;
         File file = new File(dir, fileName);

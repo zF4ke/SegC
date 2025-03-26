@@ -68,13 +68,12 @@ public class ClientHandler extends Thread {
         try {
             Request request = Request.fromStream(in);
             Body body = request.getBody();
+            System.out.println(request);
 
             if (body.getFormat() != BodyFormat.JSON) {
                 this.createErrorAuthResponse(StatusCode.BAD_REQUEST);
                 return false;
             }
-
-            System.out.println("Request: " + request);
 
             BodyJSON json = request.getBodyJSON();
             String userId = json.get("userId");
@@ -85,7 +84,6 @@ public class ClientHandler extends Thread {
                 return false;
             }
 
-            //System.out.println(request);
             System.out.println("[SERVER] Autenticar cliente: " + userId);
 
             StatusCode status = authManager.authenticate(userId, password);
@@ -99,7 +97,7 @@ public class ClientHandler extends Thread {
                         BodyFormat.JSON,
                         new BodyJSON()
                 );
-                //System.out.println(response);
+                System.out.println(response);
                 this.out.write(response.toByteArray());
 
                 return true;
@@ -110,11 +108,13 @@ public class ClientHandler extends Thread {
                         BodyFormat.JSON,
                         new BodyJSON()
                 );
+                System.out.println(response);
                 this.out.write(response.toByteArray());
 
                 // allow the client to retry once
                 Request retryRequest = Request.fromStream(in);
                 Body retryBody = retryRequest.getBody();
+                System.out.println(request);
 
                 System.out.println("[SERVER] Resposta Segunda Tentativa: " + retryRequest);
 
@@ -136,6 +136,7 @@ public class ClientHandler extends Thread {
                             BodyFormat.JSON,
                             new BodyJSON()
                     );
+                    System.out.println(response);
                     this.out.write(response.toByteArray());
 
                     return true;
@@ -159,6 +160,7 @@ public class ClientHandler extends Thread {
                     BodyFormat.JSON,
                     new BodyJSON()
             );
+            System.out.println(response);
             this.out.write(response.toByteArray());
         } catch (IOException e) {
             System.err.println("[SERVER] Erro ao criar resposta de autenticação: " + e.getMessage());

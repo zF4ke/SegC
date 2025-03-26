@@ -18,7 +18,22 @@ public class InputUtils {
      * @return true if the filename is valid, false otherwise
      */
     public static boolean isValidFilename(String input) {
-        return input.matches("^[a-zA-Z0-9]+\\.[a-zA-Z0-9]+$");
+        return isSimpleFile(input) || isFileInDirectory(input) || isDirectoryPath(input);
+    }
+
+    private static boolean isSimpleFile(String input) {
+        // Matches: filename.ext or filename (without extension)
+        return input.matches("^[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)?$");
+    }
+
+    private static boolean isFileInDirectory(String input) {
+        // Matches: dir/file.ext or dir/subdir/file.ext
+        return input.matches("^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)+\\.[a-zA-Z0-9]+$");
+    }
+
+    private static boolean isDirectoryPath(String input) {
+        // Matches: dir/subdir or dir/subdir/subdir2
+        return input.matches("^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)+$");
     }
 
     /**

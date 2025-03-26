@@ -110,27 +110,23 @@ public class WorkspaceManager {
         return false;
     }
 
-//    public String[] downloadFile(String user, String workspace, String[] filePaths) {
-//        if (fsm.isUserInWorkspace(user, workspace)) {
-//            return fsm.downloadFiles(workspace, filePaths);
-//        }
-//
-//        return new String[filePaths.length]; //all null default ok
-//    }
-//
-//    public boolean[] removeFiles(String user, String workspace, String[] filePaths) {
-//        if (fsm.isUserInWorkspace(user, workspace)) {
-//            return fsm.removeFiles(workspace, filePaths);
-//        }
-//        return new boolean[filePaths.length];
-//    }
-//
-    //list workspaces´
+    /**
+     * List the workspaces for a user
+     *
+     * @param userId The ID of the user
+     * @return An array of workspace IDs
+     */
     public String[] listWorkspaces(String userId) {
         return fsm.listWorkspaceIds(userId);
     }
 
-    //list files in workspace
+    /**
+     * List the files in a workspace
+     *
+     * @param userId The ID of the user
+     * @param workspaceId The ID of the workspace
+     * @return An array of file names
+     */
     public String[] listWorkspaceFiles(String userId, String workspaceId) {
         if (isUserInWorkspace(userId, workspaceId)) {
             return fsm.listWorkspaceFiles(workspaceId);
@@ -139,11 +135,25 @@ public class WorkspaceManager {
         return new String[0];
     }
 
-    public boolean isFileInWorksapce(String fileName, String workspace) {
-        return fsm.isFileInWorkspace(fileName, workspace);
+    /**
+     * Is the file in the workspace
+     *
+     * @param fileName the name of the file
+     * @param workspaceId the id of the workspace
+     * @return true if the file is in the workspace, false otherwise
+     */
+    public boolean isFileInWorkspace(String fileName, String workspaceId) {
+        return fsm.isFileInWorkspace(fileName, workspaceId);
     }
 
-    public File getFile(String fileName, String workspace) {
-        return fsm.getFile(fileName, workspace);
+    /**
+     * Get the file from the workspace
+     *
+     * @param fileName the name of the file
+     * @param workspaceId the id of the workspace
+     * @return the file if it exists, null otherwise
+     */
+    public File getFile(String fileName, String workspaceId) {
+        return fsm.getFile(fileName, workspaceId);
     }
 }

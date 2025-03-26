@@ -16,7 +16,7 @@ import server.models.StatusCode;
 import server.models.User;
 import server.utils.NetworkUtils;
 
-public class DownloadFileFromWorkspace implements RouteHandler{
+public class DownloadFileFromWorkspaceHandler implements RouteHandler{
     private static final Map<String, FileDownloadSession> downloadSessions = new HashMap<>();
     private static final int CHUNK_SIZE = 1024 * 64; //64 KB
 
@@ -29,46 +29,45 @@ public class DownloadFileFromWorkspace implements RouteHandler{
 
                 switch (action) {
                     case "verify":
-                        return handleVerification(request);
+                        return handlePermVerification(request);
                     case "init":
                         return handleInitialization(request);
                     case "chunk":
                         return handleChunkData(request);
                     case "complete":
-                        return handleComplete(request);
+                        return handleCompletion(request);
 
                     default:
                         return NetworkUtils.createErrorResponse(request, "Ação inválida");
                 }
             } else 
             return NetworkUtils.createErrorResponse(request, "Request inválido");
-            
-
         } catch (Exception e) {
-            throw new UnsupportedOperationException("Unimplemented method 'handle'");
+            return NetworkUtils.createErrorResponse(request, "Erro ao processar pedido: " + e.getMessage());
         }
         
     }
 
-
-    public Response handleVerification(Request request) {
+    /**
+     * Handles the permission verification for a file upload.
+     *
+     * @param request the request
+     * @return the response
+     */
+    private Response handlePermVerification(Request request) {
+        User user = request.getAuthenticatedUser();
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
         BodyJSON body = request.getBodyJSON();
-        String workspace = body.get("workspace");
-        body = new BodyJSON();
-        
-        if (verifyInitialization(body)) {
-            return new Response(
-                    request.getUUID(),
-                    StatusCode.OK,
-                    BodyFormat.JSON,
-                    body);
-        }
-        else 
-            return NetworkUtils.createErrorResponse(request, "Request inválido");
-    }
+        String workspaceId = body.get("workspaceId");
 
-    public boolean verifyInitialization(BodyJSON body) {
-        return false;
+        if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
+        }
+
+        BodyJSON responseBody = new BodyJSON();
+        responseBody.put("message", "O utilizador tem permissão para fazer download de ficheiros");
+
+        return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
     }
 
     private Response handleInitialization(Request request) {
@@ -83,7 +82,7 @@ public class DownloadFileFromWorkspace implements RouteHandler{
             return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
         }
 
-        if (!workspaceManager.isFileInWorksapce(filename, workspaceId)) {
+        if (!workspaceManager.isFileInWorkspace(filename, workspaceId)) {
             return NetworkUtils.createErrorResponse(request, StatusCode.NOK);
         }
 
@@ -178,7 +177,7 @@ public class DownloadFileFromWorkspace implements RouteHandler{
         }
     }
 
-    private Response handleComplete(Request request) {
+    private Response handleCompletion(Request request) {
         BodyJSON body = request.getBodyJSON();
         String fileId = body.get("fileId");
         User user = request.getAuthenticatedUser();
@@ -212,7 +211,6 @@ public class DownloadFileFromWorkspace implements RouteHandler{
                 StatusCode.OK,
                 BodyFormat.JSON,
                 completeBody);
-
     }
 
 

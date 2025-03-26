@@ -4,6 +4,8 @@ import server.models.*;
 import server.utils.NetworkUtils;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class NetworkManager {
     private final DataInputStream in;
@@ -109,7 +111,7 @@ public class NetworkManager {
      * @param workspaceId the workspace id
      * @param files the files
      */
-    public void downloadFilesToWorkspace(String workspaceId, String[] files) {
+    public void downloadFilesFromWorkspace(String workspaceId, String[] files) {
         BodyJSON body = new BodyJSON();
         body.put("workspaceId", workspaceId);
         body.put("action", "verify");
@@ -125,7 +127,7 @@ public class NetworkManager {
 
         for (String file : files) {
             try {
-                boolean status = sendFileToServer(file, workspaceId, in, out);
+                boolean status = receiveFileFromServer(file, workspaceId, in, out);
                 if (!status) {
                     System.err.println("[CLIENT] Erro ao enviar ficheiro: " + file);
                 }
@@ -242,10 +244,10 @@ public class NetworkManager {
 
         out.write(initRequest.toByteArray());
         Response initResponse = Response.fromStream(in);
-        System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+        //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
 
         if (initResponse.getStatus() != StatusCode.OK) {
-            System.err.println("[CLIENT] Erro ao inicializar upload");
+            System.err.println("[CLIENT] Erro ao inicializar download");
             return false;
         }
 
@@ -273,18 +275,21 @@ public class NetworkManager {
                 Response chunkResponse = Response.fromStream(in);
                 if (!String.valueOf(chunkId).equals(chunkResponse.getHeader("CHUNK-ID"))) {
                     System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(fileName));
                     return false;
                 }
 
                 if (!fileId.equals(chunkResponse.getHeader("FILE-ID"))) {
                     System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(fileName));
                     return false;
                 }
 
-                System.out.println("[CLIENT] Resposta de chunk " + chunkId + ": " + chunkResponse);
+                //System.out.println("[CLIENT] Resposta de chunk " + chunkId + ": " + chunkResponse);
 
                 if (chunkResponse.getStatus() != StatusCode.OK) {
                     System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(fileName));
                     return false;
                 }
 
@@ -293,6 +298,7 @@ public class NetworkManager {
             }
         } catch (IOException e) {
             System.err.println("[CLIENT] Erro ao receber ficheiro: " + e.getMessage());
+            Files.deleteIfExists(Paths.get(fileName));
             return false;
         }
 
@@ -313,6 +319,8 @@ public class NetworkManager {
 
         if (completeResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao finalizar download!");
+            Files.deleteIfExists(Paths.get(fileName));
+
             return false;
         }
 
@@ -335,7 +343,7 @@ public class NetworkManager {
         }
 
         // Step 1: Initialize the upload
-        System.out.println("[CLIENT] Iniciando envio do ficheiro: " + file.getName());
+        //System.out.println("[CLIENT] Iniciando envio do ficheiro: " + file.getName());
 
         BodyJSON initBody = new BodyJSON();
         initBody.put("action", "init");
@@ -356,7 +364,7 @@ public class NetworkManager {
 
         out.write(initRequest.toByteArray());
         Response initResponse = Response.fromStream(in);
-        System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+        //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
 
         if (initResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao inicializar upload");
@@ -392,7 +400,7 @@ public class NetworkManager {
                 chunkRequest.addHeader("CHUNK-ID", String.valueOf(chunkId));
                 chunkRequest.addHeader("TYPE", "CHUNK");
 
-                System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
+                //System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
                 out.write(chunkRequest.toByteArray());
 
                 Response chunkResponse = Response.fromStream(in);
@@ -425,7 +433,7 @@ public class NetworkManager {
             return false;
         }
 
-        System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
+        //System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
         return true;
     }
 }

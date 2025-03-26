@@ -79,7 +79,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
         responseBody.put("message", "O utilizador tem permissão para fazer upload de ficheiros");
 
         return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
-        }
+    }
 
     /**
      * Handles the initialization of a file upload.

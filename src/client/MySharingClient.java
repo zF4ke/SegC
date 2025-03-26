@@ -80,8 +80,7 @@ public class MySharingClient {
     public void start() {
         try {
             socket = new Socket(serverAddress, port);
-            in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
+            this.openStreams();
 
             System.out.println("[CLIENT] Conectado ao servidor " + serverAddress + ":" + port);
 
@@ -93,7 +92,7 @@ public class MySharingClient {
 
             System.out.println("[CLIENT] Autenticação bem sucedida.");
 
-            CommandLineInterface cli = new CommandLineInterface(in, out);
+            CommandLineInterface cli = new CommandLineInterface(socket, in, out);
             cli.start();
 
         } catch (Exception e) {
@@ -143,7 +142,7 @@ public class MySharingClient {
             this.out.write(request.toByteArray());
             Response response = Response.fromStream(in);
 
-            System.out.println("[CLIENT] Resposta: " + response);
+            //System.out.println("[CLIENT] Resposta: " + response);
 
             List<StatusCode> OK_CODES = List.of(StatusCode.OK_USER, StatusCode.OK_NEW_USER);
 
