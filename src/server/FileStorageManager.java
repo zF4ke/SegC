@@ -123,7 +123,7 @@ public class FileStorageManager {
             try {
                 Files.delete(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
             } catch (IOException ex) {
-                System.out.println("[FILE STORAGE] Erro ao deletar workspace: " + ex.getMessage());
+                System.out.println("[FILE STORAGE] Erro ao apagar workspace: " + ex.getMessage());
             }
 
             System.out.println("[FILE STORAGE] Erro ao criar workspace: " + e.getMessage());
@@ -319,11 +319,7 @@ public class FileStorageManager {
      */
     public boolean deleteFile(String fileName, String workspaceId) {
         File file = getFile(fileName, workspaceId);
-        System.out.println("[FILE STORAGE] Delete do arquivo: " + fileName);
-        System.out.println("workspaceid: " + workspaceId);
-        System.out.println("file:" + file.getPath());
         if (file == null) {
-            System.out.println("teste1 fudeu");
             return false;
         }
         return file.delete();
