@@ -101,7 +101,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
         long fileSize = Long.parseLong(body.get("size"));
         int chunks = Integer.parseInt(body.get("chunks"));
 
-        if (fileName == null || fileSize < 0 || chunks <= 0 || !InputUtils.isValidFilename(fileName)) {
+        if (fileName == null || fileSize < 0 || chunks < 0 || !InputUtils.isValidFilename(fileName)) {
             return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos");
         }
 
