@@ -23,7 +23,7 @@ public class InputUtils {
 
     private static boolean isSimpleFile(String input) {
         // Matches: filename.ext or filename (without extension)
-        return input.matches("^[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)?$");
+        return input.matches("^[a-zA-Z0-9]*(\\.[a-zA-Z0-9]+)?$");
     }
 
     private static boolean isFileInDirectory(String input) {
@@ -43,7 +43,14 @@ public class InputUtils {
      * @return true if the workspace id is valid, false otherwise
      */
     public static boolean isValidWorkspaceId(String input) {
-        return input.matches("^[a-zA-Z0-9_]+$");
+        if (input == null) {
+            return false;
+        }
+        if (input.isBlank()) {
+            return false;
+        }
+
+        return input.matches("^[a-zA-Z0-9_]*$");
     }
 
     /**

@@ -38,7 +38,7 @@ public class NetworkManager {
                 String message = responseBody.get("message");
                 if (message == null) message = "";
 
-                System.out.println("Resposta: (" + response.getStatus() + ") " + message);
+                System.out.println("Resposta: " + response.getStatus() + " # " + message);
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
             }
@@ -63,7 +63,7 @@ public class NetworkManager {
                 String message = responseBody.get("message");
                 if (message == null) message = "";
 
-                System.out.println("Resposta: (" + response.getStatus() + ") " + message);
+                System.out.println("Resposta: " + response.getStatus() + " # " + message);
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
             }
@@ -85,20 +85,24 @@ public class NetworkManager {
         Response verifyResponse = sendRequest(verifyBody, "uploadfiletoworkspace");
         if (verifyResponse != null) {
             if (verifyResponse.getStatus() != StatusCode.OK) {
-                System.out.println("Resposta: (" + verifyResponse.getStatus() + ") " + verifyResponse.getBodyJSON().get("message"));
+                System.out.println("Resposta: " + verifyResponse.getStatus());
                 return;
             }
         }
 
         // 2. send files to the server
+        boolean first = true;
         for (String file : files) {
             try {
-                boolean status = sendFileToServer(file, workspaceId, in, out);
-                if (!status) {
-                    System.err.println("[CLIENT] Erro ao enviar ficheiro: " + file);
-                }
+                StatusCode status = sendFileToServer(file, workspaceId, in, out);
 
-                System.out.println("Resposta: (" + status + ") " + file);
+                //System.out.print("\t" + file + ": " + status);
+                if (!first) {
+                    System.out.println("\t\t  " + file + ": " + status);
+                } else {
+                    first = false;
+                    System.out.println("Resposta: " + file + ": " + status);
+                }
             } catch (IOException e) {
                 System.err.println("[CLIENT] Erro ao enviar ficheiro: " + e.getMessage());
             }
@@ -120,19 +124,22 @@ public class NetworkManager {
         if (response != null) {
             StatusCode status = response.getStatus();
             if (status != StatusCode.OK) {
-                System.out.println("Resposta: " + status);
+                System.out.println("Resposta: " + response.getStatus());
                 return;
             }
         }
 
+        boolean first = true;
         for (String file : files) {
             try {
-                boolean status = receiveFileFromServer(file, workspaceId, in, out);
-                if (!status) {
-                    System.err.println("[CLIENT] Erro ao enviar ficheiro: " + file);
+                StatusCode status = receiveFileFromServer(file, workspaceId, in, out);
+                if (!first) {
+                    System.out.println("\t\t  " + file + ": " + status);
+                } else {
+                    first = false;
+                    System.out.println("Resposta: " + file + ": " + status);
                 }
 
-                System.out.println("Resposta: (" + status + ") " + file);
             } catch (IOException e) {
                 System.err.println("[CLIENT] Erro ao enviar ficheiro: " + e.getMessage());
             }
@@ -146,6 +153,20 @@ public class NetworkManager {
      * @param files the files
      */
     public void removeFilesFromWorkspace(String workspaceId, String[] files) {
+        BodyJSON bodyVerify = new BodyJSON();
+        bodyVerify.put("workspaceId", workspaceId);
+
+        // Verify if the user has permission to remove files from the workspace, using the listworkspacefiles route
+        Response responseVerify = sendRequest(bodyVerify, "listworkspacefiles");
+        if (responseVerify != null) {
+            StatusCode status = responseVerify.getStatus();
+            if (status != StatusCode.OK) {
+                System.out.println("Resposta: " + responseVerify.getStatus());
+                return;
+            }
+        }
+
+        boolean first = true;
         for (String file : files) {
             BodyJSON body = new BodyJSON();
             body.put("workspaceId", workspaceId);
@@ -154,11 +175,14 @@ public class NetworkManager {
             Response response = sendRequest(body, "removefilefromworkspace");
             if (response != null) {
                 try {
-                    BodyJSON responseBody = response.getBodyJSON();
-                    String message = responseBody.get("message");
-                    if (message == null) message = "";
+                    //System.out.println("Resposta: (" + response.getStatus() + ") " + message);
+                    if (!first) {
+                        System.out.println("\t\t  " + file + ": " + response.getStatus());
+                    } else {
+                        first = false;
+                        System.out.println("Resposta: " + file + ": " + response.getStatus());
+                    }
 
-                    System.out.println("Resposta: (" + response.getStatus() + ") " + message);
                 } catch (Exception e) {
                     System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
                 }
@@ -177,7 +201,7 @@ public class NetworkManager {
                 String workspaceIds = responseBody.get("workspaceIds");
                 if (workspaceIds == null) workspaceIds = "";
 
-                System.out.println("Resposta: (" + response.getStatus() + ") " + workspaceIds);
+                System.out.println("Resposta: " + workspaceIds);
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
             }
@@ -197,10 +221,15 @@ public class NetworkManager {
         if (response != null) {
             try {
                 BodyJSON responseBody = response.getBodyJSON();
+                if (response.getStatus() != StatusCode.OK) {
+                    System.out.println("Resposta: " + response.getStatus());
+                    return;
+                }
+
                 String files = responseBody.get("files");
                 if (files == null) files = "";
 
-                System.out.println("Resposta: (" + response.getStatus() + ") " + files);
+                System.out.println("Resposta: " + files);
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
             }
@@ -242,7 +271,7 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static boolean receiveFileFromServer(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode receiveFileFromServer(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         // Step 1: Initialize the download
         BodyJSON initBody = new BodyJSON();
         initBody.put("action", "init");
@@ -261,8 +290,8 @@ public class NetworkManager {
         //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
 
         if (initResponse.getStatus() != StatusCode.OK) {
-            System.err.println("[CLIENT] Erro ao inicializar download");
-            return false;
+            //System.err.println("[CLIENT] Erro ao inicializar download");
+            return StatusCode.NOT_FOUND;
         }
 
         BodyJSON initResponseBody = initResponse.getBodyJSON();
@@ -290,13 +319,13 @@ public class NetworkManager {
                 if (!String.valueOf(chunkId).equals(chunkResponse.getHeader("CHUNK-ID"))) {
                     System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
                     Files.deleteIfExists(Paths.get(fileName));
-                    return false;
+                    return chunkResponse.getStatus();
                 }
 
                 if (!fileId.equals(chunkResponse.getHeader("FILE-ID"))) {
                     System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
                     Files.deleteIfExists(Paths.get(fileName));
-                    return false;
+                    return chunkResponse.getStatus();
                 }
 
                 //System.out.println("[CLIENT] Resposta de chunk " + chunkId + ": " + chunkResponse);
@@ -304,7 +333,7 @@ public class NetworkManager {
                 if (chunkResponse.getStatus() != StatusCode.OK) {
                     System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
                     Files.deleteIfExists(Paths.get(fileName));
-                    return false;
+                    return chunkResponse.getStatus();
                 }
 
                 BodyRaw chunkData = chunkResponse.getBodyRaw();
@@ -313,7 +342,7 @@ public class NetworkManager {
         } catch (IOException e) {
             System.err.println("[CLIENT] Erro ao receber ficheiro: " + e.getMessage());
             Files.deleteIfExists(Paths.get(fileName));
-            return false;
+            return StatusCode.NOK;
         }
 
         // Step 3: Complete the download
@@ -335,11 +364,11 @@ public class NetworkManager {
             System.err.println("[CLIENT] Erro ao finalizar download!");
             Files.deleteIfExists(Paths.get(fileName));
 
-            return false;
+            return completeResponse.getStatus();
         }
 
-        System.out.println("[CLIENT] Ficheiro recebido com sucesso!");
-        return true;
+        //System.out.println("[CLIENT] Ficheiro recebido com sucesso!");
+        return completeResponse.getStatus();
     }
 
     /**
@@ -349,11 +378,11 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static boolean sendFileToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode sendFileToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         File file = new File(filePath);
         if (!file.exists()) {
-            System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
-            return false;
+            //System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
+            return StatusCode.NOT_FOUND;
         }
 
         // Step 1: Initialize the upload
@@ -382,7 +411,7 @@ public class NetworkManager {
 
         if (initResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao inicializar upload");
-            return false;
+            return initResponse.getStatus();
         }
 
         BodyJSON initResponseBody = initResponse.getBodyJSON();
@@ -420,7 +449,7 @@ public class NetworkManager {
                 Response chunkResponse = Response.fromStream(in);
                 if (chunkResponse.getStatus() != StatusCode.OK) {
                     System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
-                    return false;
+                    return chunkResponse.getStatus();
                 }
 
                 chunkId++;
@@ -444,10 +473,10 @@ public class NetworkManager {
 
         if (completeResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao finalizar upload");
-            return false;
+            return completeResponse.getStatus();
         }
 
         //System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
-        return true;
+        return completeResponse.getStatus();
     }
 }
