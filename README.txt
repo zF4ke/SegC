@@ -2,11 +2,10 @@
 
 ## Identificação
 
-**Grupo 20** <br/>
-
-Diogo Lopes 60447 <br/>
-Francisco Catarino 59790 <br/>
-Pedro Silva 59886 <br/>
+-- Grupo 20 --
+Diogo Lopes 60447
+Francisco Catarino 59790
+Pedro Silva 59886
 
 # Compilar
 
