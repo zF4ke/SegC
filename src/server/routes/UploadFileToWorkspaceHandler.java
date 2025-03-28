@@ -71,6 +71,10 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
         BodyJSON body = request.getBodyJSON();
         String workspaceId = body.get("workspaceId");
 
+        if (!workspaceManager.workspaceExists(workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, StatusCode.NOWS);
+        }
+
         if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
             return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
         }

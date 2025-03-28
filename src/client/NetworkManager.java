@@ -98,7 +98,7 @@ public class NetworkManager {
 
                 //System.out.print("\t" + file + ": " + status);
                 if (!first) {
-                    System.out.println("\t\t  " + file + ": " + status);
+                    System.out.println("\t  " + file + ": " + status);
                 } else {
                     first = false;
                     System.out.println("Resposta: " + file + ": " + status);
@@ -134,7 +134,7 @@ public class NetworkManager {
             try {
                 StatusCode status = receiveFileFromServer(file, workspaceId, in, out);
                 if (!first) {
-                    System.out.println("\t\t  " + file + ": " + status);
+                    System.out.println("\t  " + file + ": " + status);
                 } else {
                     first = false;
                     System.out.println("Resposta: " + file + ": " + status);
@@ -177,7 +177,7 @@ public class NetworkManager {
                 try {
                     //System.out.println("Resposta: (" + response.getStatus() + ") " + message);
                     if (!first) {
-                        System.out.println("\t\t  " + file + ": " + response.getStatus());
+                        System.out.println("\t  " + file + ": " + response.getStatus());
                     } else {
                         first = false;
                         System.out.println("Resposta: " + file + ": " + response.getStatus());

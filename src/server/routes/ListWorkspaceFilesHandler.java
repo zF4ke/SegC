@@ -21,6 +21,10 @@ public class ListWorkspaceFilesHandler implements RouteHandler {
                 return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos.");
             }
 
+            if (!workspaceManager.workspaceExists(workspaceId)) {
+                return NetworkUtils.createErrorResponse(request, StatusCode.NOWS);
+            }
+
             if (!workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
                 return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
             }
