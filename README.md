@@ -18,7 +18,7 @@ Para compilar o programa, basta correr o script `build.sh` que se encontra na ra
 
 # Executar
 
-Para correr o 
+Para correr o servidor e o cliente, basta correr os seguintes comandos:
 
 Servidor:
 ```bash
@@ -29,3 +29,9 @@ Cliente:
 ```bash
 java -jar build/bin/mySharingClient.jar <IP/Hostname>[:Port] <user-id> <password>
 ```
+
+# Limitações
+
+- O nome do workspace do cliente é sempre criado com o id do utilizador atrás, e.g. `userid_nome` para prevenir conflitos de nomes. Por exemplo, se um utilizador criasse o workspace `joao`, ocorreria um conflito caso fosse registado um novo utilizador com o id `joao`. Assim, o workspace seria criado com o nome `utilizador_joao`, prevenindo assim o conflito quando o utilizador `joao` fosse registado.
+
+- Não é possível fazer upload de ficheiros que estão dentro de pastas. Apenas ficheiros que estão na mesma pasta que o cliente são permitidos. Isso é para evitar que o cliente manipule o caminho do ficheiro, e saia da pasta do workspace no servidor.
