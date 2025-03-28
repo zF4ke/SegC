@@ -25,12 +25,6 @@ public class CommandLineInterface {
         this.networkManager = new NetworkManager(in, out);
         this.scanner = new Scanner(System.in);
         this.socket = socket;
-
-        // Shutdown hook to close gracefully
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n[CLIENT] Shutting down...");
-            scanner.close();
-        }));
     }
 
     /**
