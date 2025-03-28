@@ -1,6 +1,6 @@
 # Criar diretórios de compilação
 rm -rf build/
-mkdir -p build/client build/server build/bin build/manifest
+mkdir -p build/client build/server build/bin build/manifest 
 
 # Manisfest
 echo "Main-Class: server.MySharingServer" > build/manifest/server_manifest.mf
