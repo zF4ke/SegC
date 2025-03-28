@@ -35,3 +35,5 @@ java -jar build/bin/mySharingClient.jar <IP/Hostname>[:Port] <user-id> <password
 - O nome do workspace do cliente é sempre criado com o id do utilizador atrás, e.g. `userid_nome` para prevenir conflitos de nomes. Por exemplo, se um utilizador criasse o workspace `joao`, ocorreria um conflito caso fosse registado um novo utilizador com o id `joao`. Assim, o workspace seria criado com o nome `utilizador_joao`, prevenindo assim o conflito quando o utilizador `joao` fosse registado.
 
 - Não é possível fazer upload de ficheiros que estão dentro de pastas. Apenas ficheiros que estão na mesma pasta que o cliente são permitidos. Isso é para evitar que o cliente manipule o caminho do ficheiro, e saia da pasta do workspace no servidor.
+
+- O servidor não tem semáforos para controlar o acesso concorrente aos ficheiros. Assim, se dois clientes tentarem aceder ao mesmo ficheiro ao mesmo tempo, o servidor não garante que o ficheiro não seja corrompido.
