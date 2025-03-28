@@ -1,7 +1,6 @@
 package server;
 
 import server.models.StatusCode;
-import server.models.User;
 import server.models.Workspace;
 import server.utils.InputUtils;
 
@@ -79,6 +78,16 @@ public class WorkspaceManager {
         }
 
         return StatusCode.NOPERM;
+    }
+
+    /**
+     * Does the workspace exist
+     *
+     * @param workspaceId the id of the workspace
+     * @return true if the workspace exists, false otherwise
+     */
+    public boolean workspaceExists(String workspaceId) {
+        return fsm.getWorkspace(workspaceId) != null;
     }
 
     /**

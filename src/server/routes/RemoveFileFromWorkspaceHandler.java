@@ -2,6 +2,7 @@ package server.routes;
 
 import server.WorkspaceManager;
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 
@@ -14,6 +15,14 @@ public class RemoveFileFromWorkspaceHandler implements RouteHandler {
             BodyJSON body = request.getBodyJSON();
             String workspaceId = body.get("workspaceId");
             String fileName = body.get("fileName");
+
+            if (!InputUtils.isValidWorkspaceId(workspaceId) || !InputUtils.isValidFilename(fileName)) {
+                return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos.");
+            }
+
+            if (!workspaceManager.workspaceExists(workspaceId)) {
+                return NetworkUtils.createErrorResponse(request, StatusCode.NOWS);
+            }
 
             if (!workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
                 return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);

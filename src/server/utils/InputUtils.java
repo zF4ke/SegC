@@ -18,23 +18,29 @@ public class InputUtils {
      * @return true if the filename is valid, false otherwise
      */
     public static boolean isValidFilename(String input) {
-        return isSimpleFile(input) || isFileInDirectory(input) || isDirectoryPath(input);
+        return isSimpleFile(input);
+        //        return isSimpleFile(input) || isFileInDirectory(input) || isDirectoryPath(input);
     }
 
     private static boolean isSimpleFile(String input) {
+        if (input == null) {
+            return false;
+        }
+
         // Matches: filename.ext or filename (without extension)
         return input.matches("^[a-zA-Z0-9]*(\\.[a-zA-Z0-9]+)?$");
     }
 
-    private static boolean isFileInDirectory(String input) {
-        // Matches: dir/file.ext or dir/subdir/file.ext
-        return input.matches("^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)+\\.[a-zA-Z0-9]+$");
-    }
-
-    private static boolean isDirectoryPath(String input) {
-        // Matches: dir/subdir or dir/subdir/subdir2
-        return input.matches("^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)+$");
-    }
+    // Removed for security reasons
+//    private static boolean isFileInDirectory(String input) {
+//        // Matches: dir/file.ext or dir/subdir/file.ext
+//        return input.matches("^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)+\\.[a-zA-Z0-9]+$");
+//    }
+//
+//    private static boolean isDirectoryPath(String input) {
+//        // Matches: dir/subdir or dir/subdir/subdir2
+//        return input.matches("^[a-zA-Z0-9]+(/[a-zA-Z0-9]+)+$");
+//    }
 
     /**
      * Check if the workspace id is valid.

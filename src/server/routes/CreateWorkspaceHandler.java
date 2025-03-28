@@ -2,6 +2,7 @@ package server.routes;
 
 import server.WorkspaceManager;
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 public class CreateWorkspaceHandler implements RouteHandler {
@@ -12,6 +13,10 @@ public class CreateWorkspaceHandler implements RouteHandler {
             User user = request.getAuthenticatedUser();
             BodyJSON body = request.getBodyJSON();
             String workspaceName = body.get("workspaceName");
+
+            if (!InputUtils.isValidWorkspaceId(workspaceName)) {
+                return NetworkUtils.createErrorResponse(request, "Nome do workspace inválido.");
+            }
 
             WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
             StatusCode status = workspaceManager.createWorkspace(user.getUserId(), workspaceName);

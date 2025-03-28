@@ -2,6 +2,7 @@ package server.routes;
 
 import server.WorkspaceManager;
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 import java.util.Arrays;
@@ -15,6 +16,10 @@ public class ListWorkspaceFilesHandler implements RouteHandler {
             WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
             BodyJSON body = request.getBodyJSON();
             String workspaceId = body.get("workspaceId");
+
+            if (!InputUtils.isValidWorkspaceId(workspaceId)) {
+                return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos.");
+            }
 
             if (!workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
                 return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);

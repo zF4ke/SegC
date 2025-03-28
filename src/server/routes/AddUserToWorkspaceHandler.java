@@ -2,6 +2,7 @@ package server.routes;
 
 import server.WorkspaceManager;
 import server.models.*;
+import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
 public class AddUserToWorkspaceHandler implements RouteHandler {
@@ -13,6 +14,10 @@ public class AddUserToWorkspaceHandler implements RouteHandler {
             BodyJSON body = request.getBodyJSON();
             String userToAdd = body.get("user");
             String workspaceId = body.get("workspaceId");
+
+            if (!InputUtils.isValidUserId(userToAdd) || !InputUtils.isValidWorkspaceId(workspaceId)) {
+                return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos.");
+            }
 
             WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
             StatusCode status = workspaceManager.addUserToWorkspace(user.getUserId(), userToAdd, workspaceId);
