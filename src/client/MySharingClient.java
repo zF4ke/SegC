@@ -1,13 +1,12 @@
 package client;
 
-import server.models.*;
-import server.utils.InputUtils;
-import server.utils.NetworkUtils;
-
 import java.io.*;
 import java.net.Socket;
 import java.util.List;
 import java.util.Scanner;
+import server.models.*;
+import server.utils.InputUtils;
+import server.utils.NetworkUtils;
 
 /**
  * The client class.
@@ -84,13 +83,18 @@ public class MySharingClient {
 
             System.out.println("[CLIENT] Conectado ao servidor " + serverAddress + ":" + port);
 
-            if (!authenticateUser()) {
-                System.err.println("[CLIENT] Autenticação falhou.");
+            List<StatusCode> OK_CODES = List.of(StatusCode.OK_USER, StatusCode.OK_NEW_USER);
+
+            StatusCode statusCode = authenticateUser(); 
+            if (!OK_CODES.contains(statusCode)) {
+                System.err.println("[CLIENT] " + statusCode + "\n[CLIENT] Autenticação falhou.");
                 stop();
                 return;
             }
 
-            System.out.println("[CLIENT] Autenticação bem sucedida.");
+           
+
+            System.out.println("[CLIENT] " + statusCode + "\n[CLIENT] Autenticação bem sucedida.");
 
             CommandLineInterface cli = new CommandLineInterface(socket, in, out);
             cli.start();
@@ -119,13 +123,13 @@ public class MySharingClient {
      *
      * @return true if the user is authenticated, false otherwise
      */
-    public boolean authenticateUser() {
+    public StatusCode authenticateUser() {
         try {
             System.out.println("[CLIENT] Autenticando utilizador...");
 
             if (!InputUtils.isValidUsernameAndPassword(userId, password)) {
                 System.err.println("[CLIENT] Utilizador ou password tem caracteres inválidos.");
-                return false;
+                return StatusCode.BAD_REQUEST;
             }
 
             BodyJSON body = new BodyJSON();
@@ -147,8 +151,9 @@ public class MySharingClient {
             List<StatusCode> OK_CODES = List.of(StatusCode.OK_USER, StatusCode.OK_NEW_USER);
 
             if (OK_CODES.contains(response.getStatus())) {
-                return true;
+                return response.getStatus();
             } else if (response.getStatus() == StatusCode.WRONG_PWD) {
+                
                 Scanner s = new Scanner(System.in);
 
                 System.out.print("[CLIENT] Password incorreta. Tente novamente.\n[CLIENT] Segunda tentativa: ");
@@ -167,13 +172,13 @@ public class MySharingClient {
 
                 //System.out.println("[CLIENT] Resposta Segunda Tentativa: " + response);
 
-                return OK_CODES.contains(response.getStatus());
+                return response.getStatus();
             }
         } catch (Exception e) {
             System.err.println("[CLIENT] Erro ao autenticar utilizador: " + e.getMessage());
         }
 
-        return false;
+        return StatusCode.NOK;
     }
 
     /**

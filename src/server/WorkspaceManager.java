@@ -1,10 +1,9 @@
 package server;
 
+import java.io.File;
 import server.models.StatusCode;
 import server.models.Workspace;
 import server.utils.InputUtils;
-
-import java.io.File;
 
 public class WorkspaceManager {
     private static WorkspaceManager INSTANCE;
@@ -186,7 +185,7 @@ public class WorkspaceManager {
             if (success) {
                 return StatusCode.OK;
             } else {
-                return StatusCode.NOK;
+                return StatusCode.NOT_FOUND;
             }
         } else {
             return StatusCode.NOPERM;
