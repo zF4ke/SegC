@@ -22,10 +22,10 @@ Para correr o
 
 Servidor:
 ```bash
-java -jar build/libs/mySharingServer.jar [port]
+java -jar build/bin/mySharingServer.jar [port]
 ```
 
 Cliente:
 ```bash
-java -jar build/libs/mySharingClient.jar <IP/Hostname>[:Port] <user-id> <password>
+java -jar build/bin/mySharingClient.jar <IP/Hostname>[:Port] <user-id> <password>
 ```

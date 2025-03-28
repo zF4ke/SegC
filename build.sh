@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # Criar diretórios de compilação
 rm -rf build/
 mkdir -p build/client build/server build/bin build/manifest
