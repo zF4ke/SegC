@@ -2,17 +2,20 @@ package server.models;
 
 public class User {
     private final String userId;
-    private final String password;
+    private final String hash;
+    private final String salt;
 
     /**
      * Create a new user.
      *
      * @param userId the user ID
-     * @param password the user password
+     * @param hash the user password+salt hash
+     * @param salt the user password salt
      */
-    public User(String userId, String password) {
+    public User(String userId, String hash, String salt) {
         this.userId = userId;
-        this.password = password;
+        this.hash = hash;
+        this.salt = salt;
     }
 
     /**
@@ -25,16 +28,25 @@ public class User {
     }
 
     /**
-     * Get the user password.
+     * Get the user hashed password+salt.
      *
-     * @return the user password
+     * @return the user hashed password+salt
      */
-    public String getPassword() {
-        return password;
+    public String getHash() {
+        return hash;
+    }
+
+    /**
+     * Get the user password salt.
+     *
+     * @return the user password salt
+     */
+    public String getSalt() {
+        return salt;
     }
 
     @Override
     public String toString() {
-        return userId + ":" + password;
+        return userId + ":" + hash + ":" + salt;
     }
 }

@@ -1,6 +1,7 @@
 package server;
 
 import server.models.User;
+import server.utils.SecurityUtils;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -59,16 +60,17 @@ public class UserStorageManager {
                 String line = scanner.nextLine();
                 String[] parts = line.split(":");
 
-                if (parts.length != 2) {
+                if (parts.length != 3) {
                     System.err.println("[USER STORAGE] Formato inválido: " + line);
                     continue;
                 }
 
                 String username = parts[0];
-                String password = parts[1];
+                String hash = parts[1];
+                String salt = parts[2];
 
                 if (username.equals(userId)) {
-                    return new User(userId, password);
+                    return new User(username, hash, salt);
                 }
             }
         } catch (IOException e) {
@@ -92,14 +94,15 @@ public class UserStorageManager {
             return false;
         }
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE_PATH, true))) {
-            writer.write(user + ":" + password);
-            writer.newLine();
-
+        try {
+            String securePassword = SecurityUtils.genSecurePassword(user, password);
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE_PATH, true))) {
+                writer.write(securePassword);
+                writer.newLine();
+            }
             return true;
-        } catch (IOException e) {
-            System.err.println("[USER STORAGE] Erro ao adicionar usuário: " + e.getMessage());
-
+        } catch (Exception e) {
+            System.err.println("[USER STORAGE] Erro ao adicionar utilizador: " + e.getMessage());
             return false;
         }
     }
