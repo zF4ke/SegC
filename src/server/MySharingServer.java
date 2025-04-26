@@ -159,10 +159,34 @@ public class MySharingServer {
      */
     private static void handleMacIssue(Path filePath, Path macFilePath, String macVerificationFlag) throws Exception {
         if (!Files.exists(filePath)) {
-            System.out.println("[SERVER] Ficheiro ausente: " + filePath);
-            System.out.println("[SERVER] A encerrar ...");
-            System.exit(1);
-        } else if (!Files.exists(macFilePath)) {
+            if (macVerificationFlag.equals("users")) {
+                System.out.println("[SERVER] Ficheiro Users ausente: " + filePath);
+                System.out.print("[SERVER] Deseja criar o ficheiro, sem este nao sera possivel verificao de MACs? (s/n): ");
+                Scanner scanner = new Scanner(System.in); // Nao fechar este scanner
+                String answer = scanner.nextLine();
+                if (answer.equalsIgnoreCase("s")) {
+                    Files.createFile(filePath);
+                    System.out.println("[SERVER] Ficheiro Users criado com sucesso.");
+                } else {
+                    System.out.println("[SERVER] Prosseguindo sem criacao do ficheiro...");
+                    verifyUsersMacFlag = false;
+                }
+            } else if (macVerificationFlag.equals("workspaces")) {
+                System.out.println("[SERVER] Ficheiro Workspaces ausente: " + filePath);
+                System.out.print("[SERVER] Deseja criar o ficheiro, sem este nao sera possivel verificao de MACs? (s/n): ");
+                Scanner scanner = new Scanner(System.in); // Nao fechar este scanner
+                String answer = scanner.nextLine();
+                if (answer.equalsIgnoreCase("s")) {
+                    Files.createFile(filePath);
+                    System.out.println("[SERVER] Ficheiro Workspaces criado com sucesso.");
+                } else {
+                    System.out.println("[SERVER] Prosseguindo sem criacao do ficheiro...");
+                    verifyWorkspacesMacFlag = false;
+                }
+            }
+        }
+
+        if (!Files.exists(macFilePath)) {
             System.out.println("[SERVER] MAC ausente para o ficheiro: " + filePath);
             System.out.print("[SERVER] Deseja calcular o MAC? (s/n): ");
             Scanner scanner = new Scanner(System.in); // Nao fechar este scanner

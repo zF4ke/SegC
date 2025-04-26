@@ -74,7 +74,7 @@ public class SecurityUtils {
         Files.write(filePath, Base64.getEncoder().encode(mac));
     }
 
-    public static byte[] readMACFromMACFile(Path filePath) throws Exception {
+    public static byte[] readMacFromMacFile(Path filePath) throws Exception {
         if (Files.exists(filePath)) {
             return Base64.getDecoder().decode(Files.readAllBytes(filePath));
         }
@@ -94,7 +94,7 @@ public class SecurityUtils {
         if (!Files.exists(filePath) || !Files.exists(macFilePath)) {
             return false;
         }
-        byte[] expectedMac = readMACFromMACFile(macFilePath);
+        byte[] expectedMac = readMacFromMacFile(macFilePath);
         if (expectedMac == null) {
             throw new IllegalArgumentException("MAC nao encontrado no ficheiro: " + macFilePath);
         }
