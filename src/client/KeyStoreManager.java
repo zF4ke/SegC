@@ -32,6 +32,11 @@ import java.security.cert.CertificateException;
  * 
  * keytool-genkeypair-alias keyRSA -keyalg RSA -keysize 2048 -storetype JCEKS keystore myKeys
  * 
+ * Now we need to create a TrustStore in the client with the certificate that can be found 
+ * in the server with the following command:
+ * 
+ * keytool -importcert -alias myserver -file ../../server/chaves/keyRSA.cer -keystore trustStore -storetype JCEKS
+ * 
  * Servidor:
  * Nome da keyStore: serverKeys
  * Alias: keyRSA
@@ -43,16 +48,17 @@ import java.security.cert.CertificateException;
  * keytool -exportcert -alias keyRSA -storetype JCEKS -keystore serverKeys -file keyRSA.cer
  * 
  * 
- * Cliente:
+ * 
+ *  TrustStore:
  * 
  * Now we need to create a TrustStore in the client with the certificate that can be found 
  * in the server with the following command:
  * 
  *  keytool -importcert -alias myserver -file ../../server/chaves/keyRSA.cer -keystore trustStore -storetype JCEKS
- *   
- *  Now i will create a certificate for the public key from the client 
  * 
- *  keytool -exportcert -alias keyRSA -storetype JCEKS -keystore serverKeys -file keyRSA.cer
+ * adding the client key to the trustStore
+ * 
+ *  keytool -importcert -alias myclient -file keyRSA.cer -keystore trustStore -storetype JCEKS
  * 
  */
 
