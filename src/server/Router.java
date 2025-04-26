@@ -3,19 +3,20 @@ package server;
 import server.models.*;
 import server.routes.*;
 
+import javax.net.ssl.SSLSocket;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
 public class Router {
-    private final Socket clientSocket;
+    private final SSLSocket sslClientSocket;
     private final User authenticatedUser;
     private final DataInputStream in;
     private final DataOutputStream out;
 
-    public Router(Socket clientSocket, DataInputStream in, DataOutputStream out, User authenticatedUser) {
-        this.clientSocket = clientSocket;
+    public Router(SSLSocket sslClientSocket, DataInputStream in, DataOutputStream out, User authenticatedUser) {
+        this.sslClientSocket = sslClientSocket;
         this.authenticatedUser = authenticatedUser;
         this.in = in;
         this.out = out;
@@ -25,7 +26,7 @@ public class Router {
         System.out.println("\n[ROUTER] A aguardar por requests...");
 
         try {
-            while (!clientSocket.isClosed()) {
+            while (!sslClientSocket.isClosed()) {
                 try {
                     Request request = Request.fromStream(in);
                     //request.addHeader("USER-ID", authenticatedUser.getUserId());
@@ -81,7 +82,7 @@ public class Router {
      */
     private void closeSocket() {
         try {
-            clientSocket.close();
+            sslClientSocket.close();
         } catch (Exception e) {
             System.err.println("[SERVER] Erro ao fechar socket: " + e.getMessage());
         }

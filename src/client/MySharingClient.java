@@ -8,6 +8,10 @@ import server.models.*;
 import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+
 /**
  * The client class.
  */
@@ -18,7 +22,7 @@ public class MySharingClient {
     private final String userId;
     private final String password;
 
-    private Socket socket;
+    private SSLSocket sslSocket;
     private DataInputStream in;
     private DataOutputStream out;
 
@@ -78,7 +82,11 @@ public class MySharingClient {
      */
     public void start() {
         try {
-            socket = new Socket(serverAddress, port);
+            // Configurar o truststore (certificados confiáveis)
+            System.setProperty("javax.net.ssl.trustStore", "truststore.client");
+            System.setProperty("javax.net.ssl.trustStorePassword", "truststorePassword");
+            SocketFactory sf = SSLSocketFactory.getDefault();
+            sslSocket = (SSLSocket) sf.createSocket(serverAddress, port);
             this.openStreams();
 
             System.out.println("[CLIENT] Conectado ao servidor " + serverAddress + ":" + port);
@@ -92,11 +100,9 @@ public class MySharingClient {
                 return;
             }
 
-           
-
             System.out.println("[CLIENT] " + statusCode + "\n[CLIENT] Autenticação bem sucedida.");
 
-            CommandLineInterface cli = new CommandLineInterface(socket, in, out);
+            CommandLineInterface cli = new CommandLineInterface(sslSocket, in, out);
             cli.start();
 
         } catch (Exception e) {
@@ -109,8 +115,8 @@ public class MySharingClient {
      */
     private void openStreams() {
         try {
-            this.in = new DataInputStream(socket.getInputStream());
-            this.out = new DataOutputStream(socket.getOutputStream());
+            this.in = new DataInputStream(sslSocket.getInputStream());
+            this.out = new DataOutputStream(sslSocket.getOutputStream());
 
             System.out.println("[SERVER] Streams abertas.");
         } catch (IOException e) {
@@ -186,8 +192,8 @@ public class MySharingClient {
      */
     public void stop() {
         try {
-            if (socket != null && !socket.isClosed()) {
-                socket.close();
+            if (sslSocket != null && !sslSocket.isClosed()) {
+                sslSocket.close();
                 System.out.println("[CLIENT] Conexão fechada");
             }
         } catch (Exception e) {

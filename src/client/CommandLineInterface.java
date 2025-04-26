@@ -2,6 +2,7 @@ package client;
 
 import server.utils.InputUtils;
 
+import javax.net.ssl.SSLSocket;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.Socket;
@@ -13,7 +14,7 @@ import java.util.Scanner;
 public class CommandLineInterface {
     private final NetworkManager networkManager;
     private final Scanner scanner;
-    private final Socket socket;
+    private final SSLSocket socket;
 
     /**
      * Create a new command line interface.
@@ -21,7 +22,7 @@ public class CommandLineInterface {
      * @param in the input stream
      * @param out the output stream
      */
-    public CommandLineInterface(Socket socket, DataInputStream in, DataOutputStream out) {
+    public CommandLineInterface(SSLSocket socket, DataInputStream in, DataOutputStream out) {
         this.networkManager = new NetworkManager(in, out);
         this.scanner = new Scanner(System.in);
         this.socket = socket;

@@ -2,6 +2,10 @@ package server;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import javax.net.ServerSocketFactory;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -22,26 +26,28 @@ public class MySharingServer {
     private static final Path USERS_MAC_FILE_PATH = Path.of("data/users.mac");
     private static final Path WORKSPACES_FILE_PATH = Path.of("data/workspaces.txt");
     private static final Path WORKSPACES_MAC_FILE_PATH = Path.of("data/workspaces.mac");
-    private final ServerSocket serverSocket;
+    private final SSLServerSocket sslServerSocket;
 
     public static void main(String[] args) {
         int port = parsePortArgs(args);
 
+        // Ler password do sistema
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("[SERVER] Bem-vindo ao MySharingServer!");
+        System.out.print("[SERVER] Introduza a password do sistema: ");
+        String password = scanner.nextLine();
+
+        // Pass sem salt
+        // Verificar se deviamos utilizar assim como o prof tem no mail ou se
+        // devemos utilizar o salt e o genSecretKey para ser mais seguro
+        byte[] bytesKey = password.getBytes();
+        serverKey = new SecretKeySpec(bytesKey, 0, bytesKey.length, "AES");
+
+        // Verificar integridade dos ficheiros
+        verifyFilesIntegrity();
+        scanner.close();
+
         try {
-            Scanner scanner = new Scanner(System.in);
-            System.out.println("[SERVER] Bem-vindo ao MySharingServer!");
-            System.out.print("[SERVER] Introduza a password do sistema: ");
-            String password = scanner.nextLine();
-
-            // Pass sem salt
-            // Verificar se deviamos utilizar assim como o prof tem no mail ou se
-            // devemos utilizar o salt e o genSecretKey para ser mais seguro
-            byte[] bytesKey = password.getBytes();
-            serverKey = new SecretKeySpec(bytesKey, 0, bytesKey.length, "AES");
-
-            verifyFilesIntegrity();
-            scanner.close();
-
             MySharingServer server = new MySharingServer(port);
             server.start();
         } catch (IOException e) {
@@ -96,6 +102,7 @@ public class MySharingServer {
         try {
             if (!SecurityUtils.verifyFileMac(USERS_FILE_PATH, USERS_MAC_FILE_PATH, serverKey)) {
                 System.err.println("[SERVER] MAC inválido. O arquivo de usuários pode ter sido comprometido.");
+                System.err.println("[SERVER] Sistema comprometido! A encerrar...");
                 System.exit(1);
             }
         } catch (Exception e) {
@@ -128,6 +135,7 @@ public class MySharingServer {
         try {
             if (!SecurityUtils.verifyFileMac(WORKSPACES_FILE_PATH, WORKSPACES_MAC_FILE_PATH, serverKey)) {
                 System.err.println("[SERVER] MAC inválido. O arquivo de workspaces pode ter sido comprometido.");
+                System.err.println("[SERVER] Sistema comprometido! A encerrar...");
                 System.exit(1);
             }
         } catch (Exception e) {
@@ -217,7 +225,16 @@ public class MySharingServer {
      * @throws IOException if an I/O error occurs
      */
     public MySharingServer(int port) throws IOException {
-        this.serverSocket = new ServerSocket(port);
+        // Configurar o keystore (chave privada do servidor)
+        System.setProperty("javax.net.ssl.keyStore", "keystore.server");
+        System.setProperty("javax.net.ssl.keyStorePassword", "keystorePassword");
+
+        // Configurar o truststore (certificados confiáveis)
+        System.setProperty("javax.net.ssl.trustStore", "truststore.server");
+        System.setProperty("javax.net.ssl.trustStorePassword", "truststorePassword");
+
+        ServerSocketFactory ssf = SSLServerSocketFactory.getDefault();
+        this.sslServerSocket = (SSLServerSocket) ssf.createServerSocket(port);
         System.out.println("[SERVER] Servidor iniciado na porta " + port);
     }
 
@@ -227,8 +244,7 @@ public class MySharingServer {
     public void start() {
         try {
             while (true) {
-                Socket clientSocket = serverSocket.accept();
-                new ClientHandler(clientSocket).start();
+                new ClientHandler((SSLSocket) sslServerSocket.accept()).start();
             }
         } catch (IOException e) {
             System.err.println("[SERVER] Erro ao aceitar conexão: " + e.getMessage());
@@ -242,8 +258,8 @@ public class MySharingServer {
      */
     public void stop() {
         try {
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
+            if (sslServerSocket != null && !sslServerSocket.isClosed()) {
+                sslServerSocket.close();
                 System.out.println("[SERVER] Servidor fechado");
             }
         } catch (IOException e) {

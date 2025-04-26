@@ -4,12 +4,14 @@ import server.models.*;
 import server.utils.InputUtils;
 import server.utils.NetworkUtils;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSocket;
 import java.io.*;
 import java.net.Socket;
 import java.util.List;
 
 public class ClientHandler extends Thread {
-    private final Socket clientSocket;
+    private final SSLSocket sslClientSocket;
     private DataInputStream in;
     private DataOutputStream out;
 
@@ -20,16 +22,16 @@ public class ClientHandler extends Thread {
     /**
      * Create a new client handler.
      *
-     * @param clientSocket the client socket
+     * @param sslClientSocket the client socket
      */
-    public ClientHandler(Socket clientSocket) {
-        this.clientSocket = clientSocket;
+    public ClientHandler(SSLSocket sslClientSocket) {
+        this.sslClientSocket = sslClientSocket;
         this.authManager = AuthenticationManager.getInstance();
     }
 
     @Override
     public void run() {
-        System.out.println("[SERVER] Cliente conectado: " + clientSocket);
+        System.out.println("[SERVER] Cliente conectado: " + sslClientSocket);
 
         this.openStreams();
 
@@ -41,7 +43,7 @@ public class ClientHandler extends Thread {
 
         System.out.println("[SERVER] Autenticação bem sucedida.");
 
-        Router router = new Router(clientSocket, in, out, authenticatedUser);
+        Router router = new Router(sslClientSocket, in, out, authenticatedUser);
         router.handleRequests();
     }
 
@@ -50,8 +52,8 @@ public class ClientHandler extends Thread {
      */
     private void openStreams() {
         try {
-            this.in = new DataInputStream(clientSocket.getInputStream());
-            this.out = new DataOutputStream(clientSocket.getOutputStream());
+            this.in = new DataInputStream(sslClientSocket.getInputStream());
+            this.out = new DataOutputStream(sslClientSocket.getOutputStream());
 
             System.out.println("[SERVER] Streams abertas.");
         } catch (IOException e) {
@@ -169,7 +171,7 @@ public class ClientHandler extends Thread {
 
     private void closeSocket() {
         try {
-            clientSocket.close();
+            sslClientSocket.close();
         } catch (Exception e) {
             System.err.println("[SERVER] Erro ao fechar socket: " + e.getMessage());
         }
