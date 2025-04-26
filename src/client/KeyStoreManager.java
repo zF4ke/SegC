@@ -16,11 +16,26 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 
-//imports for X509 certificate
-import java.security.cert.X509Certificate;
-import java.security.cert.Certificate;
 
 
+/*
+ * Nota:
+ * Comando usado para gerar par de chaves, onde a chave publica vai para um certeficado, 
+ * indo isto tudo para dentro de uma keytool, esta que é gerada diretamente se ainda não
+ * existir o ficheiro
+ * 
+ * Cliente:
+ * Nome da keyStore: myKeys
+ * Alias: keyRSA
+ * 
+ * keytool-genkeypair-alias keyRSA -keyalg RSA -keysize 2048 -storetype JCEKS keystore myKeys
+ * 
+ * Servidor:
+ * Nome da keyStore: serverKeys
+ * Alias: keyRSA
+ * 
+ * keytool -genkeypair -alias keyRSA -keyalg RSA -keysize 2048 -storetype JCEKS -keystore serverKeys  
+ */
 
 public class KeyStoreManager {
 
@@ -51,10 +66,8 @@ public class KeyStoreManager {
         catch (IOException e) {
             e.printStackTrace();
         } catch (NoSuchAlgorithmException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (CertificateException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
         
@@ -82,5 +95,4 @@ public class KeyStoreManager {
         }
     }
 
-    
 }
