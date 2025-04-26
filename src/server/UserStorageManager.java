@@ -55,6 +55,8 @@ public class UserStorageManager {
      * @return the user, or null if the user does not exist
      */
     public User getUser(String userId) {
+        MySharingServer.verifyUsersMac();
+
         try (Scanner scanner = new Scanner(new File(USERS_FILE_PATH))) {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
@@ -88,9 +90,10 @@ public class UserStorageManager {
      * @return true if the user was added, false otherwise
      */
     public boolean addUser(String user, String password) {
+        MySharingServer.verifyUsersMac();
+
         if (this.getUser(user) != null) {
             System.err.println("[USER STORAGE] Usuário já existe: " + user);
-
             return false;
         }
 
@@ -100,6 +103,8 @@ public class UserStorageManager {
                 writer.write(securePassword);
                 writer.newLine();
             }
+
+            MySharingServer.updateUsersMac();
             return true;
         } catch (Exception e) {
             System.err.println("[USER STORAGE] Erro ao adicionar utilizador: " + e.getMessage());
@@ -114,6 +119,8 @@ public class UserStorageManager {
      * @return true if the user was removed, false otherwise
      */
     public boolean removeUser(String user) {
+        MySharingServer.verifyUsersMac();
+
         File inputFile = new File(USERS_FILE_PATH);
         File tempFile = new File(USERS_FILE_PATH + ".tmp");
 
@@ -137,6 +144,7 @@ public class UserStorageManager {
 
             if (!userFound) {
                 tempFile.delete();
+                // User not found, didnt change file so no need to update MAC
                 return true;
             }
 
@@ -145,6 +153,7 @@ public class UserStorageManager {
                 Files.move(tempFile.toPath(), inputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
 
+            MySharingServer.updateUsersMac();
             return true;
         } catch (IOException e) {
             System.err.println("[USER STORAGE] Erro ao remover usuário: " + e.getMessage());

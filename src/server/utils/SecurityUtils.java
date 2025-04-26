@@ -1,8 +1,12 @@
 package server.utils;
 
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -11,6 +15,7 @@ import java.util.Base64;
 
 public class SecurityUtils {
     public static final int DEFAULT_ITERATION_COUNT = 100000;
+    public static final String MAC_ALGORITHM = "HmacSHA256";
 
     public static byte[] genSalt() {
         SecureRandom sr = new SecureRandom();
@@ -39,7 +44,7 @@ public class SecurityUtils {
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         String[] parts = storedUser.split(":");
         if (parts.length != 3) {
-            throw new IllegalArgumentException("Stored password must have format: userId:hash:salt");
+            throw new IllegalArgumentException("Password tem que ter formato: userId:hash:salt");
         }
 
         String storedHashB64 = parts[1];
@@ -51,5 +56,49 @@ public class SecurityUtils {
         SecretKey secretKey = genSecretKey(inputPassword, salt, DEFAULT_ITERATION_COUNT);
         byte[] inputHash = secretKey.getEncoded();
         return MessageDigest.isEqual(inputHash, storedHash);
+    }
+
+    public static byte[] genMac(byte[] data, SecretKey key)
+            throws NoSuchAlgorithmException, InvalidKeyException {
+        Mac mac = Mac.getInstance(MAC_ALGORITHM);
+        mac.init(key);
+        return mac.doFinal(data);
+    }
+
+    public static boolean verifyMac(byte[] expectedMac, byte[] actualMac)
+            throws Exception {
+        return MessageDigest.isEqual(expectedMac, actualMac);
+    }
+
+    public static void writeMacOnMacFile(Path filePath, byte[] mac) throws Exception {
+        Files.write(filePath, Base64.getEncoder().encode(mac));
+    }
+
+    public static byte[] readMACFromMACFile(Path filePath) throws Exception {
+        if (Files.exists(filePath)) {
+            return Base64.getDecoder().decode(Files.readAllBytes(filePath));
+        }
+        return null;
+    }
+
+    public static byte[] genFileMac(Path filePath, SecretKey key) throws Exception {
+        if (!Files.exists(filePath)) {
+            throw new IllegalArgumentException("Ficheiro nao encontrado: " + filePath);
+        }
+        byte[] fileBytes = Files.readAllBytes(filePath);
+        return genMac(fileBytes, key);
+    }
+
+    public static boolean verifyFileMac(Path filePath, Path macFilePath, SecretKey key) 
+        throws Exception {
+        if (!Files.exists(filePath) || !Files.exists(macFilePath)) {
+            return false;
+        }
+        byte[] expectedMac = readMACFromMACFile(macFilePath);
+        if (expectedMac == null) {
+            throw new IllegalArgumentException("MAC nao encontrado no ficheiro: " + macFilePath);
+        }
+        byte[] actualMac = genFileMac(filePath, key);
+        return verifyMac(expectedMac, actualMac);
     }
 }

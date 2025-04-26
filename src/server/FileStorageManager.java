@@ -45,7 +45,6 @@ public class FileStorageManager {
         } catch (IOException e){
             System.out.println("[FILE STORAGE] Erro ao criar diretórios e arquivos: " + e.getMessage());
         }
-
     }
 
     /**
@@ -68,6 +67,8 @@ public class FileStorageManager {
      * @return the workspace, or null if the workspace does not exist
      */
     public Workspace getWorkspace(String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
         try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
@@ -103,6 +104,8 @@ public class FileStorageManager {
      * @return true if the workspace was created, false otherwise
      */
     public boolean createWorkspace(String userId, String name) {
+        MySharingServer.verifyWorkspacesMac();
+
         String workspaceId = userId + "_" + name;
 
         if (this.getWorkspace(workspaceId) != null) {
@@ -130,6 +133,7 @@ public class FileStorageManager {
             return false;
         }
 
+        MySharingServer.updateWorkspacesMac();
         return true;
     }
 
@@ -141,6 +145,8 @@ public class FileStorageManager {
      * @return true if the user was added, false otherwise
      */
     public boolean addUserToWorkspace(String workspaceId, String userId)  {
+        MySharingServer.verifyWorkspacesMac();
+
         try {
             File file = new File(WORKSPACES_FILE_PATH);
             Scanner scanner = new Scanner(file);
@@ -195,6 +201,7 @@ public class FileStorageManager {
             fileWriter.write(newContent.toString());
             fileWriter.close();
 
+            MySharingServer.updateWorkspacesMac();
             return true;
         } catch (IOException e) {
             System.err.println("[FILE STORAGE] Erro ao adicionar usuário ao workspace: " + e.getMessage());
@@ -209,6 +216,8 @@ public class FileStorageManager {
      * @return an array of workspace IDs
      */
     public String[] listWorkspaceIds(String usernameId) {
+        MySharingServer.verifyWorkspacesMac();
+
         try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))) {
             List<String> workspaceIds = new ArrayList<>();
 
@@ -246,6 +255,8 @@ public class FileStorageManager {
      * @return an array of file names
      */
     public String[] listWorkspaceFiles(String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
         File workspaceDir = new File(WORKSPACES_DIR_PATH + workspaceId);
         return workspaceDir.list();
     }
@@ -259,6 +270,8 @@ public class FileStorageManager {
      * @return true if the file was uploaded, false otherwise
      */
     public boolean uploadFile(String workspaceId, File file, String fileName) {
+        MySharingServer.verifyWorkspacesMac();
+
         try {
             // workspace path
             Path workspacePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId);
@@ -273,6 +286,7 @@ public class FileStorageManager {
             // move file to workspace
             Files.move(file.toPath(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
+            MySharingServer.updateWorkspacesMac();
             return true;
         } catch (IOException e) {
             System.err.println("[FILE STORAGE] Erro ao fazer upload do arquivo: " + e.getMessage());
@@ -288,10 +302,13 @@ public class FileStorageManager {
      * @return true if the file is in the workspace, false otherwise
      */
     public boolean isFileInWorkspace(String fileName, String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
         File file = getFile(fileName, workspaceId);
         if (file == null) {
             return false;
         }
+
         return file.exists();
     }
 
@@ -303,9 +320,12 @@ public class FileStorageManager {
      * @return the file if it exists, null otherwise
      */
     public File getFile(String fileName, String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
         if (fileName == null || workspaceId == null) {
             return null;
         }
+
         String dir = WORKSPACES_DIR_PATH + workspaceId;
         return new File(dir, fileName);
     }
@@ -318,10 +338,14 @@ public class FileStorageManager {
      * @return true if the file was deleted, false otherwise
      */
     public boolean deleteFile(String fileName, String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
         File file = getFile(fileName, workspaceId);
         if (file == null) {
             return false;
         }
+
+        MySharingServer.updateWorkspacesMac();
         return file.delete();
     }
 }
