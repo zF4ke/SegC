@@ -44,6 +44,8 @@ public class MySharingServer {
         serverKey = new SecretKeySpec(bytesKey, 0, bytesKey.length, "AES");
 
         // Verificar integridade dos ficheiros
+        FileStorageManager.getInstance();
+        UserStorageManager.getInstance();
         verifyFilesIntegrity();
         scanner.close();
 
@@ -166,34 +168,7 @@ public class MySharingServer {
      * @throws Exception if an error occurs
      */
     private static void handleMacIssue(Path filePath, Path macFilePath, String macVerificationFlag) throws Exception {
-        if (!Files.exists(filePath)) {
-            if (macVerificationFlag.equals("users")) {
-                System.out.println("[SERVER] Ficheiro Users ausente: " + filePath);
-                System.out.print("[SERVER] Deseja criar o ficheiro, sem este nao sera possivel verificao de MACs? (s/n): ");
-                Scanner scanner = new Scanner(System.in); // Nao fechar este scanner
-                String answer = scanner.nextLine();
-                if (answer.equalsIgnoreCase("s")) {
-                    Files.createFile(filePath);
-                    System.out.println("[SERVER] Ficheiro Users criado com sucesso.");
-                } else {
-                    System.out.println("[SERVER] Prosseguindo sem criacao do ficheiro...");
-                    verifyUsersMacFlag = false;
-                }
-            } else if (macVerificationFlag.equals("workspaces")) {
-                System.out.println("[SERVER] Ficheiro Workspaces ausente: " + filePath);
-                System.out.print("[SERVER] Deseja criar o ficheiro, sem este nao sera possivel verificao de MACs? (s/n): ");
-                Scanner scanner = new Scanner(System.in); // Nao fechar este scanner
-                String answer = scanner.nextLine();
-                if (answer.equalsIgnoreCase("s")) {
-                    Files.createFile(filePath);
-                    System.out.println("[SERVER] Ficheiro Workspaces criado com sucesso.");
-                } else {
-                    System.out.println("[SERVER] Prosseguindo sem criacao do ficheiro...");
-                    verifyWorkspacesMacFlag = false;
-                }
-            }
-        }
-
+    
         if (!Files.exists(macFilePath)) {
             System.out.println("[SERVER] MAC ausente para o ficheiro: " + filePath);
             System.out.print("[SERVER] Deseja calcular o MAC? (s/n): ");
@@ -225,13 +200,42 @@ public class MySharingServer {
      * @throws IOException if an I/O error occurs
      */
     public MySharingServer(int port) throws IOException {
+        //debug 
+        //TODO DELETE THIS
+        String[] props = {
+            "javax.net.ssl.keyStore",
+            "javax.net.ssl.keyStorePassword",
+            "javax.net.ssl.trustStore",
+            "javax.net.ssl.trustStorePassword"
+          };
+      
+          String[] values = {
+            "server/chaves/serverKeys",
+            "123456",
+            "server/chaves/trustStore",
+            "123456"
+          };
+      
+          for (int i = 0; i < props.length; i++) {
+              try {
+                  System.setProperty(props[i], values[i]);
+                  System.out.printf("Set %s = %s%n", props[i], values[i]);
+              } catch (Exception e) {
+                  System.err.printf("✖ Failed setting %s = %s: %s%n",
+                                    props[i], values[i], e);
+                  e.printStackTrace();
+              }
+          }
+
+          //end of the debug
+
         // Configurar o keystore (chave privada do servidor)
-        System.setProperty("javax.net.ssl.keyStore", "keystore.server");
-        System.setProperty("javax.net.ssl.keyStorePassword", "keystorePassword");
+        System.setProperty("javax.net.ssl.keyStore", "src/server/chaves/serverKeys");
+        System.setProperty("javax.net.ssl.keyStorePassword", "123456");
 
         // Configurar o truststore (certificados confiáveis)
-        System.setProperty("javax.net.ssl.trustStore", "truststore.server");
-        System.setProperty("javax.net.ssl.trustStorePassword", "truststorePassword");
+        //System.setProperty("javax.net.ssl.trustStore", "src/server/chaves/trustStore");
+        //System.setProperty("javax.net.ssl.trustStorePassword", "123456");
 
         ServerSocketFactory ssf = SSLServerSocketFactory.getDefault();
         this.sslServerSocket = (SSLServerSocket) ssf.createServerSocket(port);
