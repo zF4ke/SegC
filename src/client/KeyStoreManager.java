@@ -10,6 +10,7 @@ import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
@@ -20,9 +21,7 @@ import java.security.cert.CertificateException;
 
 /*
  * Nota:
- * Comando usado para gerar par de chaves, onde a chave publica vai para um certeficado, 
- * indo isto tudo para dentro de uma keytool, esta que é gerada diretamente se ainda não
- * existir o ficheiro
+ * Comandos usado para gerar par de chaves, certificados, keyStore e trustStore
  * 
  * all the passwords are 123456 
  * 
@@ -30,35 +29,46 @@ import java.security.cert.CertificateException;
  * Nome da keyStore: myKeys
  * Alias: keyRSA
  * 
- * keytool-genkeypair-alias keyRSA -keyalg RSA -keysize 2048 -storetype JCEKS keystore myKeys
+ * keytool -genkeypair -alias keyRSA -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.client
  * 
- * Now we need to create a TrustStore in the client with the certificate that can be found 
- * in the server with the following command:
+ * Export Certificate from myKeys
  * 
- * keytool -importcert -alias myserver -file ../../server/chaves/keyRSA.cer -keystore trustStore -storetype JCEKS
+ * keytool -exportcert -alias keyRSA -storetype PKCS12 -keystore keystore.client -file keyRSA.client.cer
+ * 
  * 
  * Servidor:
  * Nome da keyStore: serverKeys
  * Alias: keyRSA
  * 
- * keytool -genkeypair -alias keyRSA -keyalg RSA -keysize 2048 -storetype JCEKS -keystore serverKeys
+ * keytool -genkeypair -alias keyRSA -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.server
  * 
  * Export Certificate from serverKeys
  * 
- * keytool -exportcert -alias keyRSA -storetype JCEKS -keystore serverKeys -file keyRSA.cer
+ * keytool -exportcert -alias keyRSA -storetype PKCS12 -keystore keystore.server -file keyRSA.server.cer
  * 
  * 
  * 
- *  TrustStore:
+ *  TrustStore no cliente:
  * 
  * Now we need to create a TrustStore in the client with the certificate that can be found 
  * in the server with the following command:
  * 
- *  keytool -importcert -alias myserver -file ../../server/chaves/keyRSA.cer -keystore trustStore -storetype JCEKS
+ *  keytool -importcert -alias myserver -file ../server_keys/keyRSA.server.cer -keystore truststore.client -storetype PKCS12
  * 
  * adding the client key to the trustStore
  * 
- *  keytool -importcert -alias myclient -file keyRSA.cer -keystore trustStore -storetype JCEKS
+ *  keytool -importcert -alias myclient -file keyRSA.client.cer -keystore truststore.client -storetype PKCS12
+ * 
+ * 
+ * 
+ * TrustStore no servidor:
+ * 
+ * add the client key to the trustStore
+ * keytool -importcert -alias myclient -file ../client_keys/keyRSA.client.cer -keystore truststore.server -storetype PKCS12
+ * 
+ * adding the server key to the trustStore
+ * keytool -importcert -alias myserver -file keyRSA.server.cer -keystore truststore.server -storetype PKCS12
+ * 
  * 
  */
 
@@ -98,9 +108,9 @@ public class KeyStoreManager {
         
     }
 
-    public Key getPrivateKey() {
+    public PrivateKey getPrivateKey() {
         try {
-            return kStore.getKey("keyRSA", password.toCharArray());
+            return (PrivateKey) kStore.getKey("keyRSA", password.toCharArray());
         } catch (KeyStoreException | NoSuchAlgorithmException | UnrecoverableKeyException e) {
             e.printStackTrace();
             return null; 

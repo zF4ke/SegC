@@ -1,0 +1,5 @@
+fkatar_workspace001:fkatar:fkatar
+fkatar_ws:fkatar:fkatar
+fkatar2_workspace001:fkatar2:fkatar2
+fkatar3_workspace001:fkatar3:fkatar3
+fkatarino_workspace001:fkatarino:fkatarino

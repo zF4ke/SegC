@@ -202,6 +202,7 @@ public class MySharingServer {
     public MySharingServer(int port) throws IOException {
         //debug 
         //TODO DELETE THIS
+        /* 
         String[] props = {
             "javax.net.ssl.keyStore",
             "javax.net.ssl.keyStorePassword",
@@ -228,14 +229,18 @@ public class MySharingServer {
           }
 
           //end of the debug
+        */
 
         // Configurar o keystore (chave privada do servidor)
-        System.setProperty("javax.net.ssl.keyStore", "src/server/chaves/serverKeys");
+        System.setProperty("javax.net.ssl.keyStoreType", "PKCS12");
+        System.setProperty("javax.net.ssl.keyStore", "server_keys/keystore.server");
+        // System.setProperty("javax.net.ssl.keyStore", "src/server/chaves/serverKeys");
         System.setProperty("javax.net.ssl.keyStorePassword", "123456");
 
         // Configurar o truststore (certificados confiáveis)
-        //System.setProperty("javax.net.ssl.trustStore", "src/server/chaves/trustStore");
-        //System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+        System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
+        System.setProperty("javax.net.ssl.trustStore", "server_keys/truststore.server");
+        System.setProperty("javax.net.ssl.trustStorePassword", "123456");
 
         ServerSocketFactory ssf = SSLServerSocketFactory.getDefault();
         this.sslServerSocket = (SSLServerSocket) ssf.createServerSocket(port);

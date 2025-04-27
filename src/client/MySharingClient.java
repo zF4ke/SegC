@@ -83,8 +83,10 @@ public class MySharingClient {
     public void start() {
         try {
             // Configurar o truststore (certificados confiáveis)
-            System.setProperty("javax.net.ssl.trustStore", "truststore.client");
-            System.setProperty("javax.net.ssl.trustStorePassword", "truststorePassword");
+            System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
+            System.setProperty("javax.net.ssl.trustStore", "client_keys/truststore.client");
+            //System.setProperty("javax.net.ssl.trustStore", "src/client/chaves/truststore.client");
+            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
             SocketFactory sf = SSLSocketFactory.getDefault();
             sslSocket = (SSLSocket) sf.createSocket(serverAddress, port);
             this.openStreams();
@@ -118,9 +120,9 @@ public class MySharingClient {
             this.in = new DataInputStream(sslSocket.getInputStream());
             this.out = new DataOutputStream(sslSocket.getOutputStream());
 
-            System.out.println("[SERVER] Streams abertas.");
+            System.out.println("[CLIENT] Streams abertas.");
         } catch (IOException e) {
-            System.err.println("[SERVER] Erro ao abrir streams: " + e.getMessage());
+            System.err.println("[CLIENT] Erro ao abrir streams: " + e.getMessage());
         }
     }
 

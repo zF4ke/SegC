@@ -7,6 +7,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+
 public class NetworkManager {
     private final DataInputStream in;
     private final DataOutputStream out;
@@ -95,6 +96,13 @@ public class NetworkManager {
         for (String file : files) {
             try {
                 StatusCode status = sendFileToServer(file, workspaceId, in, out);
+                //new code starts 
+                /*
+                File signatureFile 
+                StatusCode status = sendFileToServer();
+
+                */
+                //new code endds
 
                 //System.out.print("\t" + file + ": " + status);
                 if (!first) {

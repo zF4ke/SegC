@@ -1,17 +1,29 @@
 package client.Utils;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.NoSuchPaddingException;
+
+import client.KeyStoreManager;
 
 public class SecurityUtils {
     
@@ -25,7 +37,15 @@ public class SecurityUtils {
     private static final String ALGORITHM = "SHA256withRSA";
 
 
-    public File createSignedFile(String filePath, PrivateKey privateKey) {
+    /**
+     * Creates a signed file using the given private key.
+     *
+     * @param filePath   the path to the file to be signed
+     * @param privateKey the private key to be used for signing
+     * @return the path to the signed file
+     */
+    //TODO check if the file is created in the same directory as the original file
+    public static File createSignedFile(String filePath, PrivateKey privateKey) {
         try {
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initSign(privateKey);
@@ -41,25 +61,26 @@ public class SecurityUtils {
             Files.write(Paths.get(filePath), signedBytes);
             return signaturePath.toFile();
 
-        } catch (NoSuchAlgorithmException e) {
-            // The algorithm used in the signature does not exist
-            e.printStackTrace();
-        } catch (InvalidKeyException e) {
-            // The private key used is invalid for some reason
-            e.printStackTrace();
-        } catch (IOException e) {
-            // For the file that has been read
-            e.printStackTrace();
-        } catch (SignatureException e) {
-            // Error caught while updating the signature with the fileBytes
-            e.printStackTrace();
+        
+        } catch (Exception e) {
+            System.err.println("[CLIENT] Error while signing the file: " + e.getMessage());
+            System.err.println("[CLIENT] System compromised! Shutting down...");
+            System.exit(1);
         }
-
         return null;
     }
 
 
-    public boolean verifySignedFile(String filePath, String signatureFilePath  ,PublicKey publicKey) {
+    /**
+     * Verifies the signature of a file using the given public key.
+     *
+     * @param filePath          the path to the file to be verified
+     * @param signatureFilePath the path to the signature file
+     * @param publicKey         the public key to be used for verification
+     * @return true if the signature is valid, false otherwise
+     */
+    //TODO check if the file is created in the same directory as the original file
+    public static boolean verifySignedFile(String filePath, String signatureFilePath  ,PublicKey publicKey) {
         try {
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initVerify(publicKey);
@@ -70,20 +91,114 @@ public class SecurityUtils {
 
             return signature.verify(signedBytes);
 
-        } catch (NoSuchAlgorithmException e) {
-            // The algorithm used in the signature does not exist
-            e.printStackTrace();
-        } catch (InvalidKeyException e) {
-            // Error while initializing the key 
-            e.printStackTrace();
-        } catch (IOException e) {
-            // Error while reading the data from the key 
-            e.printStackTrace();
-        } catch (SignatureException e) {
-            // Error while "updating" loading the file data
-            e.printStackTrace();
+        } catch (Exception e) {
+            System.err.println("[CLIENT] Error while verifying the signed file: " + e.getMessage());
+            System.err.println("[CLIENT] System compromised! Shutting down...");
+            System.exit(1);
         }
-
         return false;
-    } 
+    }
+
+    //genrate java doc explain what the function does
+    /**
+     * Encrypts a file using the given key.
+     *
+     * @param filePath the path to the file to be encrypted
+     * @param key      the key to be used for encryption
+     * @return the path to the encrypted file
+     */
+    //TODO check if the file is created in the same directory as the original file
+    public static String encriptFile(String filePath, Key key) {
+        try {
+            //Bocado de codigo que vai buscar a chave á keystore
+            /* 
+            KeyStoreManager ksm = new KeyStoreManager();
+            KeyStore kStore = ksm.createKeyStore("123456");
+            PrivateKey privateKey = ksm.getPrivateKey();
+            PublicKey publicKey = ksm.getPublicKey();
+            */
+    
+            Cipher cipher = Cipher.getInstance("RSA");
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+    
+            FileInputStream fis;
+            FileOutputStream fos;
+            CipherOutputStream cos;
+
+            String encryptedPath = filePath + ".cif";
+    
+            fis = new FileInputStream(filePath);
+            fos = new FileOutputStream(encryptedPath);
+
+            cos = new CipherOutputStream(fos, cipher);
+            byte[] b = new byte[16];
+            int i = fis.read(b);
+            while (i != -1) {
+                cos.write(b, 0, i);
+                i = fis.read(b);
+            }
+
+            cos.close();
+            fis.close();
+            fos.close();
+
+
+            return encryptedPath;
+
+        } catch (Exception e) {
+            System.err.println("[CLIENT] Error while encrypting the file: " + e.getMessage());
+            System.err.println("[CLIENT] System compromised! Shutting down...");
+            System.exit(1);
+        }
+        return null;
+    }
+
+    /**
+     * Decrypts a file using the given key.
+     *
+     * @param filePath the path to the file to be decrypted
+     * @param key      the key to be used for decryption
+     * @return the path to the decrypted file
+     */
+    //TODO check if the file is created in the same directory as the original file
+    public static String decriptFile(String filePath, Key key) {
+
+		try {
+            Cipher c = Cipher.getInstance("AES");
+            c.init(Cipher.DECRYPT_MODE, key);
+
+            FileInputStream fis;
+            FileOutputStream fos;
+            CipherInputStream cis;
+
+            String decryptedPath;
+
+            // This will remove the ".cif" extension from the file name added in the encryptFile method
+            if (filePath.endsWith(".cif")) {
+                decryptedPath = filePath.substring(0, filePath.length() - 4); 
+            } else {
+                throw new IllegalArgumentException("File is not encrypted (.cif extension missing)");
+            }
+            fis = new FileInputStream(filePath);
+            fos = new FileOutputStream(decryptedPath);
+            cis = new CipherInputStream(fis, c);
+
+            byte[] b = new byte[16];
+            int i = cis.read(b);
+            while (i != -1) {
+                fos.write(b, 0, i);
+                i = cis.read(b);
+            }
+            
+            fos.close();
+		    cis.close();
+
+        } catch (Exception e) {
+            System.err.println("[CLIENT] Error while decrypting the file: " + e.getMessage());
+            System.err.println("[CLIENT] System compromised! Shutting down...");
+            System.exit(1);
+        }
+        return null;
+    }
+
 }
