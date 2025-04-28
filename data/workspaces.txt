@@ -5,3 +5,5 @@ fkatar3_workspace001:fkatar3:fkatar3
 fkatarino_workspace001:fkatarino:fkatarino
 fkatarito_workspace001:fkatarito:fkatarito
 fkatarito_es:fkatarito:fkatarito
+f_workspace001:f:f
+f_w:f:f

@@ -523,7 +523,7 @@ public class NetworkManager {
         String signatureFileId = initSignatureResponseBody.get("signatureFileId");
 
         // Step 5: Send signature file chunks
-        try (FileInputStream fileIn = new FileInputStream(file)) {
+        try (FileInputStream fileIn = new FileInputStream(signatureFile)) {
             byte[] buffer = new byte[chunkSize];
             int chunkId = 0;
             int bytesRead;

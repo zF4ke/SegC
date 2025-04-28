@@ -17,6 +17,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.util.Arrays;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
@@ -53,12 +54,18 @@ public class ClientSecurityUtils {
             signature.update(fileBytes);
 
             byte[] signedBytes = signature.sign();
+
+            System.out.println("Signature length: " + signedBytes.length);
+
+
             String base64EncodedBytes = Base64.getEncoder().encodeToString(signedBytes);
+            System.out.println("Base64 encoded signature length: " + base64EncodedBytes.length());
+
             Path signaturePath = Paths.get(filePath + ".signedFile");
 
             //TODO check where the file is created
             Files.createFile(signaturePath);
-            Files.write(signaturePath, signedBytes);
+            Files.write(signaturePath, base64EncodedBytes.getBytes());
             return signaturePath.toFile();
 
         
@@ -80,24 +87,46 @@ public class ClientSecurityUtils {
      * @return true if the signature is valid, false otherwise
      */
     //TODO check if the file is created in the same directory as the original file
-    public static boolean verifySignedFile(String filePath, String signatureFilePath  ,PublicKey publicKey) {
+    public static boolean verifySignedFile(String filePath, String signatureFilePath, PublicKey publicKey) {
         try {
+            File signatureFile = new File(signatureFilePath);
+            if (!signatureFile.exists()) {
+                System.err.println("[SERVER] Signature file does not exist: " + signatureFilePath);
+                return false;
+            }
+    
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initVerify(publicKey);
-
+    
+            // Read the data file
             byte[] dataBytes = Files.readAllBytes(Paths.get(filePath));
-            byte[] signedBytes = Files.readAllBytes(Paths.get(signatureFilePath));
+            System.out.println("File size: " + dataBytes.length);
+    
+            // Read the Base64 encoded signature file
+            String base64EncodedSignature = new String(Files.readAllBytes(Paths.get(signatureFilePath)));
+            System.out.println("Base64 Encoded Signature Length: " + base64EncodedSignature.length());
+    
+            // Decode the Base64 encoded signature
+            byte[] decodedSignature = Base64.getDecoder().decode(base64EncodedSignature);
+            System.out.println("Decoded signature length: " + decodedSignature.length);
+    
+            // Extract only the first 256 bytes (the expected size for SHA256 with RSA signature)
+            byte[] signatureBytes = Arrays.copyOfRange(decodedSignature, 0, 256);
+            System.out.println("Extracted signature length: " + signatureBytes.length);
+    
+            // Verify the signature
             signature.update(dataBytes);
-
-            return signature.verify(signedBytes);
-
+            return signature.verify(signatureBytes);
+    
         } catch (Exception e) {
             System.err.println("[CLIENT] Error while verifying the signed file: " + e.getMessage());
+            e.printStackTrace();
             System.err.println("[CLIENT] System compromised! Shutting down...");
             System.exit(1);
         }
         return false;
     }
+    
 
     //genrate java doc explain what the function does
     /**
