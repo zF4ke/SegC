@@ -3,6 +3,8 @@ package client;
 import server.models.*;
 import server.utils.NetworkUtils;
 
+import client.ClientSecurityUtils;
+
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -11,6 +13,8 @@ import java.nio.file.Paths;
 public class NetworkManager {
     private final DataInputStream in;
     private final DataOutputStream out;
+    private final String KEYSTORE_PATH = "client_keys/keystore.client";
+    private KeyStoreManager ksm;
 
     /**
      * Create a new network manager.
@@ -21,6 +25,8 @@ public class NetworkManager {
     public NetworkManager(DataInputStream in, DataOutputStream out) {
         this.in = in;
         this.out = out;
+        this.ksm = new KeyStoreManager(KEYSTORE_PATH);
+        
     }
 
     /**
@@ -95,21 +101,19 @@ public class NetworkManager {
         boolean first = true;
         for (String file : files) {
             try {
-                StatusCode status = sendFileToServer(file, workspaceId, in, out);
-                //new code starts 
-                /*
-                File signatureFile 
-                StatusCode status = sendFileToServer();
 
-                */
+                File signatureFile = ClientSecurityUtils.createSignedFile(file, ksm.getPrivateKey());
+                StatusCode fileStatus = sendFileToServer(file,signatureFile.getPath(), workspaceId, in, out);
+                //new code starts 
+                
                 //new code endds
 
                 //System.out.print("\t" + file + ": " + status);
                 if (!first) {
-                    System.out.println("\t  " + file + ": " + status);
+                    System.out.println("\t  " + file + ": " + fileStatus);
                 } else {
                     first = false;
-                    System.out.println("Resposta: " + file + ": " + status);
+                    System.out.println("Resposta: " + file + ": " + fileStatus);
                 }
             } catch (IOException e) {
                 System.err.println("[CLIENT] Erro ao enviar ficheiro: " + e.getMessage());
@@ -386,10 +390,15 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static StatusCode sendFileToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode sendFileToServer(String filePath,String signatureFilePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         File file = new File(filePath);
+        File signatureFile = new File(signatureFilePath);
         if (!file.exists()) {
-            //System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
+            System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
+            return StatusCode.NOT_FOUND;
+        }
+        if (!signatureFile.exists()) {
+            System.err.println("[CLIENT] Assinatura não encontrado: " + filePath);
             return StatusCode.NOT_FOUND;
         }
 
@@ -464,7 +473,7 @@ public class NetworkManager {
             }
         }
 
-        // Step 3: Complete the upload
+        // Step 3: Complete the file upload
         BodyJSON completeBody = new BodyJSON();
         completeBody.put("action", "complete");
         completeBody.put("fileId", fileId);
@@ -484,7 +493,97 @@ public class NetworkManager {
             return completeResponse.getStatus();
         }
 
+        // Step 4: Send the signature file init
+        BodyJSON initSignatureBody = new BodyJSON();
+        initSignatureBody.put("action", "signature_init");
+        initSignatureBody.put("workspaceId", workspaceId);
+        initSignatureBody.put("signatureFileName", signatureFile.getName());
+        initSignatureBody.put("size", String.valueOf(signatureFile.length()));
+
+        int totalSignatureChunks = (int) Math.ceil((double) signatureFile.length() / chunkSize);
+        initSignatureBody.put("chunks", String.valueOf(totalSignatureChunks));
+
+        Request initSingatureRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "uploadfiletoworkspace",
+                initSignatureBody
+        );
+
+        out.write(initSingatureRequest.toByteArray());
+        Response initSignatureResponse = Response.fromStream(in);
+        //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+
+        if (initResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao inicializar upload");
+            return initResponse.getStatus();
+        }
+
+        BodyJSON initSignatureResponseBody = initSignatureResponse.getBodyJSON();
+        String signatureFileId = initSignatureResponseBody.get("signatureFileId");
+
+        // Step 5: Send signature file chunks
+        try (FileInputStream fileIn = new FileInputStream(file)) {
+            byte[] buffer = new byte[chunkSize];
+            int chunkId = 0;
+            int bytesRead;
+
+            while ((bytesRead = fileIn.read(buffer)) > 0) {
+                byte[] chunkData;
+                if (bytesRead < buffer.length) {
+                    chunkData = new byte[bytesRead];
+                    System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
+                } else {
+                    chunkData = buffer;
+                }
+
+                BodyRaw chunkBody = new BodyRaw(chunkData);
+                Request chunkRequest = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.RAW,
+                        "uploadfiletoworkspace",
+                        chunkBody
+                );
+                chunkRequest.addHeader("SIGNATURE-FILE-ID", signatureFileId);
+                chunkRequest.addHeader("CHUNK-ID", String.valueOf(chunkId));
+                chunkRequest.addHeader("TYPE", "SIGNATURE-CHUNK");
+
+                //System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
+                out.write(chunkRequest.toByteArray());
+
+                Response chunkResponse = Response.fromStream(in);
+                if (chunkResponse.getStatus() != StatusCode.OK) {
+                    System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
+                    return chunkResponse.getStatus();
+                }
+
+                chunkId++;
+            }
+        }
+
+        // Step 6: Complete the signature file upload
+        BodyJSON completeSignatureBody = new BodyJSON();
+        completeSignatureBody.put("action", "signature_complete");
+        completeSignatureBody.put("fileId", fileId);
+        completeSignatureBody.put("signatureFileId", signatureFileId);
+
+        Request completeRSignatureRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "uploadfiletoworkspace",
+                completeSignatureBody
+        );
+
+        out.write(completeRSignatureRequest.toByteArray());
+        Response completeSignatureResponse = Response.fromStream(in);
+
+        if (completeSignatureResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar upload");
+            return completeSignatureResponse.getStatus();
+        }
+
+
         //System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
-        return completeResponse.getStatus();
+        return completeSignatureResponse.getStatus();
     }
 }

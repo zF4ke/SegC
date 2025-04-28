@@ -6,10 +6,13 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.Signature;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
 
@@ -101,4 +104,37 @@ public class SecurityUtils {
         byte[] actualMac = genFileMac(filePath, key);
         return verifyMac(expectedMac, actualMac);
     }
+
+
+    //TODO this is from the SecutityUtils class found in the client, but it was neede in the server
+    public static final String ALGORITHM = "SHA256withRSA";
+
+        /**
+     * Verifies the signature of a file using the given public key.
+     *
+     * @param filePath          the path to the file to be verified
+     * @param signatureFilePath the path to the signature file
+     * @param publicKey         the public key to be used for verification
+     * @return true if the signature is valid, false otherwise
+     */
+    //TODO check if the file is created in the same directory as the original file
+    public static boolean verifySignedFile(String filePath, String signatureFilePath  ,PublicKey publicKey) {
+        try {
+            Signature signature = Signature.getInstance(ALGORITHM);
+            signature.initVerify(publicKey);
+
+            byte[] dataBytes = Files.readAllBytes(Paths.get(filePath));
+            byte[] signedBytes = Files.readAllBytes(Paths.get(signatureFilePath));
+            signature.update(dataBytes);
+
+            return signature.verify(signedBytes);
+
+        } catch (Exception e) {
+            System.err.println("[CLIENT] Error while verifying the signed file: " + e.getMessage());
+            System.err.println("[CLIENT] System compromised! Shutting down...");
+            System.exit(1);
+        }
+        return false;
+    }
+
 }

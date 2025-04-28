@@ -31,6 +31,20 @@ public class InputUtils {
         return input.matches("^[a-zA-Z0-9]*(\\.[a-zA-Z0-9]+)?$");
     }
 
+    /**
+     * Check if the signed filename is valid.
+     *
+     * @param input the signed filename
+     * @return true if the signed filename is valid, false otherwise
+     */
+    public static boolean isValidSignedFilename(String input) {
+        if (input == null) {
+            return false;
+        }
+        return input.matches("^[a-zA-Z0-9]+\\.signedFile$");
+    }
+    
+
     // Removed for security reasons
 //    private static boolean isFileInDirectory(String input) {
 //        // Matches: dir/file.ext or dir/subdir/file.ext

@@ -1,4 +1,4 @@
-package client.Utils;
+package client;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -17,15 +17,14 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.util.Base64;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.NoSuchPaddingException;
 
-import client.KeyStoreManager;
-
-public class SecurityUtils {
+public class ClientSecurityUtils {
     
     /*
      * This are the current supported signatures in java 
@@ -54,11 +53,12 @@ public class SecurityUtils {
             signature.update(fileBytes);
 
             byte[] signedBytes = signature.sign();
+            String base64EncodedBytes = Base64.getEncoder().encodeToString(signedBytes);
             Path signaturePath = Paths.get(filePath + ".signedFile");
 
             //TODO check where the file is created
             Files.createFile(signaturePath);
-            Files.write(Paths.get(filePath), signedBytes);
+            Files.write(signaturePath, signedBytes);
             return signaturePath.toFile();
 
         

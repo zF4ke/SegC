@@ -75,25 +75,25 @@ import java.security.cert.CertificateException;
 public class KeyStoreManager {
 
     public KeyStore kStore;
-    private String password;
+    private final String PASSWORD = "123456";
     
-    public KeyStore createKeyStore(String password) throws KeyStoreException {
-        generateKeyStore(password);
-
-
-        return null;
+    public  KeyStoreManager(String keypath) {
+        generateKeyStore(keypath);
     }
 
-    private void generateKeyStore(String password) throws KeyStoreException {
-        if (password == null){
-            return;
-        }
-        this.password = password; 
+    private void generateKeyStore(String keypath)  {
+       
  
-        try(FileInputStream kfile = new FileInputStream("src/client/chaves/myKeys")){
-            kStore = KeyStore.getInstance("JCEKS");
-            char[] passwordChar = password.toCharArray();
+        try(FileInputStream kfile = new FileInputStream(keypath)){
+            kStore = KeyStore.getInstance("PKCS12");
+            char[] passwordChar = PASSWORD.toCharArray();
             kStore.load(kfile, passwordChar);
+            if (kStore != null) {
+                System.out.println("Keystore contains the alias: " + kStore.containsAlias("keyrsa"));
+            }
+            
+
+
         }
         catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -104,13 +104,15 @@ public class KeyStoreManager {
             e.printStackTrace();
         } catch (CertificateException e) {
             e.printStackTrace();
+        } catch (KeyStoreException e) {
+            e.printStackTrace();
         }
         
     }
 
     public PrivateKey getPrivateKey() {
         try {
-            return (PrivateKey) kStore.getKey("keyRSA", password.toCharArray());
+            return (PrivateKey) kStore.getKey("keyrsa", PASSWORD.toCharArray());
         } catch (KeyStoreException | NoSuchAlgorithmException | UnrecoverableKeyException e) {
             e.printStackTrace();
             return null; 
@@ -123,7 +125,7 @@ public class KeyStoreManager {
 
     public Certificate getCertificate() {
         try {
-            return kStore.getCertificate("keyRSA");
+            return kStore.getCertificate("keyrsa");
         } catch (KeyStoreException e) {
             e.printStackTrace();
             return null;
