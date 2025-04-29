@@ -69,6 +69,10 @@ public class Router {
                 return new ListWorkspacesHandler().handle(request);
             case "listworkspacefiles":
                 return new ListWorkspaceFilesHandler().handle(request);
+            case "downloadkeyfromworkspace":
+                return new DownloadKeyFromWorkspaceHandler().handle(request);
+            case "uploadkeytoworkspace":
+                return new UploadKeyToWorkspaceHandler().handle(request);
             default:
                 BodyJSON body = new BodyJSON();
                 body.put("error", "Rota não encontrada");

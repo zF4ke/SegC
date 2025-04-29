@@ -107,7 +107,6 @@ public class ServerSecurityUtils {
         return verifyMac(expectedMac, actualMac);
     }
 
-    // getUserPublicKeyFromTruststore
     /**
      * Retrieves the public key for a given user alias from the server truststore.
      *

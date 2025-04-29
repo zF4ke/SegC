@@ -12,21 +12,16 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import client.TrustStoreManager;
-import server.utils.ServerSecurityUtils;
-
-public class UploadFileToWorkspaceHandler implements RouteHandler {
+public class UploadKeyToWorkspaceHandler implements RouteHandler {
     private static final String TEMP_DIR = "data/temp_files";
-    private final String KEYSTORE_PATH = "server_keys/truststore.server";
     private static final Map<String, FileUploadSession> uploadSessions = new HashMap<>();
 
-    public UploadFileToWorkspaceHandler() {
+    public UploadKeyToWorkspaceHandler() {
         try {
             Files.createDirectories(Paths.get(TEMP_DIR));
             this.cleanupOrphanedFiles();
@@ -49,10 +44,6 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
                         return handleInitialization(request);
                     case "complete":
                         return handleCompletion(request);
-                    case "signature_init":
-                        return handleSignatureInitialization(request);
-                    case "signature_complete":
-                        return handleSignatureCompletion(request);
                     default:
                         return NetworkUtils.createErrorResponse(request, "Ação inválida");
                 }
@@ -60,10 +51,6 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
                 if (request.getHeader("TYPE").equals("CHUNK")) {
                     return handleChunkData(request);
                 }
-                else if (request.getHeader("TYPE").equals("SIGNATURE-CHUNK")) {
-                    return handleSignatureChunkData(request);
-                }
-                
             }
 
             return NetworkUtils.createErrorResponse(request, "Request inválido");
@@ -71,9 +58,6 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             return NetworkUtils.createErrorResponse(request, "Erro ao processar pedido: " + e.getMessage());
         }
     }
-
-
-
 
     /**
      * Handles the permission verification for a file upload.
@@ -230,183 +214,26 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
         }
 
         try {
+            session.file.close();
+            session.isComplete = true;
+
             BodyJSON responseBody = new BodyJSON();
             responseBody.put("fileId", fileId);
             responseBody.put("status", "file uploaded");
-
-            return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
-        } catch (Exception e) {
-            return NetworkUtils.createErrorResponse(request, "Erro ao finalizar upload do file: " + e.getMessage());
-        }
-    }
-
-    
-    private Response handleSignatureInitialization(Request request) {
-        
-        User user = request.getAuthenticatedUser();
-        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
-        BodyJSON body = request.getBodyJSON();
-        String workspaceId = body.get("workspaceId");
-
-        if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
-            return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
-        }
-
-        String fileName = body.get("signatureFileName");
-        long fileSize = Long.parseLong(body.get("size"));
-        int chunks = Integer.parseInt(body.get("chunks"));
-
-        if (fileSize < 0 || chunks < 0) {
-            return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos");
-        }
-
-        String signatureFileId = UUID.randomUUID().toString();
-        String tempFilePath = TEMP_DIR + File.separator + signatureFileId;
-
-        FileUploadSession session = new FileUploadSession(
-                signatureFileId,
-                fileName,
-                fileSize,
-                tempFilePath,
-                user.getUserId(),
-                workspaceId
-        );
-        uploadSessions.put(signatureFileId, session);
-
-        BodyJSON responseBody = new BodyJSON();
-        responseBody.put("signatureFileId", signatureFileId);
-        responseBody.put("status", "ready");
-
-        return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
-    }
-
-    private Response handleSignatureChunkData(Request request) {
-       
-        String signatureFileId = request.getHeader("SIGNATURE-FILE-ID");
-        int chunkId = Integer.parseInt(request.getHeader("CHUNK-ID"));
-        User user = request.getAuthenticatedUser();
-
-        if (signatureFileId == null) {
-            return NetworkUtils.createErrorResponse(request, "FILE-ID não fornecido");
-        }
-        if (user == null) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
-        }
-
-        FileUploadSession signatureSession = uploadSessions.get(signatureFileId);
-        if (signatureSession == null) {
-            return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
-        }
-        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
-        if (!signatureSession.isOwner(user) ||
-                !workspaceManager.isUserInWorkspace(user.getUserId(), signatureSession.workspaceId)) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
-        }
-        if (signatureSession.isComplete) {
-            return NetworkUtils.createErrorResponse(request, "Upload já foi concluído");
-        }
-
-        if (chunkId != signatureSession.nextExpectedChunk) {
-            return NetworkUtils.createErrorResponse(request,
-                    "CHUNK-ID inválido, esperado: " + signatureSession.nextExpectedChunk);
-        }
-
-        try {
-            BodyRaw body = request.getBodyRaw();
-            byte[] data = body.toBytes();
-
-            signatureSession.file.seek(signatureSession.receivedBytes);
-            signatureSession.file.write(data);
-            signatureSession.receivedBytes += data.length;
-            signatureSession.nextExpectedChunk++;
-
-            BodyJSON responseBody = new BodyJSON();
-            responseBody.put("signatureFileId", signatureFileId);
-            responseBody.put("chunkId", String.valueOf(chunkId));
-            responseBody.put("status", "signature chunk received");
-
-            return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
-        } catch (Exception e) {
-            return NetworkUtils.createErrorResponse(request, "Erro ao processar chunk da signature: " + e.getMessage());
-        }
-    }
-
-    private Response handleSignatureCompletion(Request request) {
-        
-        BodyJSON body = request.getBodyJSON();
-        String fileId = body.get("fileId");
-        String signatureFileId = body.get("signatureFileId");
-
-        User user = request.getAuthenticatedUser();
-        if (fileId == null) {
-            return NetworkUtils.createErrorResponse(request, "fileId não fornecido");
-        }
-        if (user == null) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
-        }
-
-        FileUploadSession session = uploadSessions.get(fileId);
-        if (session == null) {
-            return NetworkUtils.createErrorResponse(request, "Sessão de upload não encontrada");
-        }
-
-        FileUploadSession signatureSession = uploadSessions.get(signatureFileId);
-        if (signatureSession == null) {
-            return NetworkUtils.createErrorResponse(request, "Sessão de upload da assinatura não encontrada");
-        }
-
-        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
-        if (!session.isOwner(user) ||
-                !workspaceManager.isUserInWorkspace(user.getUserId(), session.workspaceId)) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload deste ficheiro");
-        }
-
-        if (!signatureSession.isOwner(user) ||
-                !workspaceManager.isUserInWorkspace(user.getUserId(), signatureSession.workspaceId)) {
-            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer upload da assinatura deste ficheiro");
-        }
-
-        try {
-            session.file.close();
-            signatureSession.file.close();
-            session.isComplete = true;
-            signatureSession.isComplete = true;
-
-
-            //TODO 
-            //TODO public key is wrong for now
-            TrustStoreManager tsm = new TrustStoreManager(KEYSTORE_PATH);
-            PublicKey publicKey = tsm.getClientPublicKey();
-            if (publicKey == null) {
-                return NetworkUtils.createErrorResponse(request, "Chave pública não encontrada");
-            }
-            if (ServerSecurityUtils.verifySignedFile(session.tempFilePath, signatureSession.tempFilePath, publicKey)) {
-                System.out.println("[FILE UPLOAD HANDLER] Assinatura verificada com sucesso");
-            } else {
-                System.out.println("[FILE UPLOAD HANDLER] Assinatura inválida");
-                return NetworkUtils.createErrorResponse(request, "Assinatura inválida");
-            }
 
             // move file to workspace directory
-            File file = new File(session.tempFilePath);
-            File signatureFile = new File(signatureSession.tempFilePath);
-            String signatureFileName = signatureSession.fileName;
-            String fileName = session.fileName;
+//            File file = new File(session.tempFilePath);
+//            String fileName = session.fileName;
 
-            BodyJSON responseBody = new BodyJSON();
-            responseBody.put("fileId", fileId);
-            responseBody.put("status", "file uploaded");
+//            boolean success = workspaceManager.uploadFile(user.getUserId(), session.workspaceId, file, fileName);
+//            if (!success) {
+//                return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro para o workspace");
+//            }
 
-            boolean success = workspaceManager.uploadFile(user.getUserId(), session.workspaceId, file, fileName);
-            if (!success) {
-                return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro para o workspace");
-            }
-
-            uploadSessions.remove(fileId);
-            uploadSessions.remove(signatureFileId);
+            //uploadSessions.remove(fileId);
 
             // remove temp file just in case
-            Files.deleteIfExists(file.toPath());
+            //Files.deleteIfExists(file.toPath());
 
             return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
         } catch (Exception e) {
@@ -414,6 +241,26 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
         }
     }
 
+    /**
+     * Gets the upload session for a given file ID.
+     *
+     * @param fileId the file ID
+     * @return the file upload session
+     */
+    public static FileUploadSession getUploadSession(String fileId) {
+        return uploadSessions.get(fileId);
+    }
+
+    public static void removeFileUploadSession(String fileId) {
+        FileUploadSession session = uploadSessions.remove(fileId);
+        if (session != null) {
+            try {
+                Files.deleteIfExists(Paths.get(session.tempFilePath));
+            } catch (IOException e) {
+                System.err.println("[FILE UPLOAD HANDLER] Erro ao remover ficheiro temporário: " + e.getMessage());
+            }
+        }
+    }
 
     /**
      * Removes files that are not part of an active upload session. (Orphaned files)
@@ -458,7 +305,6 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
      * Represents a file upload session.
      */
     public static class FileUploadSession {
-        //for file upload
         private final String fileId;
         private final String fileName;
         private final long totalSize;
@@ -504,6 +350,24 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             }
 
             return ownerUserId.equals(user.getUserId());
+        }
+
+        /**
+         * Gets the temporary file path.
+         *
+         * @return the temporary file path
+         */
+        public String getTempFilePath() {
+            return tempFilePath;
+        }
+
+        /**
+         * Gets the file name.
+         *
+         * @return the file name
+         */
+        public String getFileName() {
+            return fileName;
         }
     }
 }

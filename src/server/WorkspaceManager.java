@@ -78,7 +78,7 @@ public class WorkspaceManager {
             // Concatenar salt + encryptedKey em Base64
             String encodedSalt = Base64.getEncoder().encodeToString(salt);
             String encodedKey  = Base64.getEncoder().encodeToString(encryptedKey);
-            String keyData     = encodedSalt + ":" + encodedKey;
+            String keyData     = encodedKey + ":" + encodedSalt;
 
             // Gravar o ficheiro .key.<userId> no workspace
             String keyFileName = workspaceId + ".key." + userId;
