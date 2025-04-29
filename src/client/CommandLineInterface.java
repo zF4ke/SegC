@@ -1,5 +1,6 @@
 package client;
 
+import server.models.User;
 import server.utils.InputUtils;
 
 import javax.net.ssl.SSLSocket;
@@ -15,6 +16,7 @@ public class CommandLineInterface {
     private final NetworkManager networkManager;
     private final Scanner scanner;
     private final SSLSocket socket;
+    private final String authenticatedUserId;
 
     /**
      * Create a new command line interface.
@@ -22,10 +24,11 @@ public class CommandLineInterface {
      * @param in the input stream
      * @param out the output stream
      */
-    public CommandLineInterface(SSLSocket socket, DataInputStream in, DataOutputStream out) {
+    public CommandLineInterface(SSLSocket socket, DataInputStream in, DataOutputStream out, String authenticatedUserId) {
         this.networkManager = new NetworkManager(in, out);
         this.scanner = new Scanner(System.in);
         this.socket = socket;
+        this.authenticatedUserId = authenticatedUserId;
     }
 
     /**
@@ -57,22 +60,24 @@ public class CommandLineInterface {
 
                 switch (commandAction) {
                     case "CREATE":
-                        if (commandParts.length == 2) {
+                        if (commandParts.length == 3) {
                             String workspace = commandParts[1];
+                            String workspacePassword = commandParts[2];
+
                             if (!isValidWorkspace(workspace)) {break;}
 
-                            networkManager.createWorkspace(workspace);
+                            networkManager.createWorkspace(workspace, workspacePassword);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: CREATE");
                         }
                         break;
                     case "ADD":
                         if (commandParts.length == 3) {
-                            String user = commandParts[1];
+                            String userId = commandParts[1];
                             String workspace = commandParts[2];
-                            if(!isValidUser(user) || !isValidWorkspace(workspace)) {break;}
+                            if(!isValidUser(userId) || !isValidWorkspace(workspace)) {break;}
 
-                            networkManager.addUserToWorkspace(user, workspace);
+                            networkManager.addUserToWorkspace(userId, workspace);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: ADD");
                         }
@@ -88,7 +93,7 @@ public class CommandLineInterface {
                             String[] validFiles = validFiles(files);
                             if (validFiles.length == 0) {break;}
 
-                            networkManager.uploadFilesToWorkspace(workspace, files);
+                            networkManager.uploadFilesToWorkspace(authenticatedUserId, workspace, files);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: UP");
                         }

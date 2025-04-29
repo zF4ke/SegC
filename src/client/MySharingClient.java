@@ -85,7 +85,6 @@ public class MySharingClient {
             // Configurar o truststore (certificados confiáveis)
             System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
             System.setProperty("javax.net.ssl.trustStore", "client_keys/truststore.client");
-            //System.setProperty("javax.net.ssl.trustStore", "src/client/chaves/truststore.client");
             System.setProperty("javax.net.ssl.trustStorePassword", "123456");
             SocketFactory sf = SSLSocketFactory.getDefault();
             sslSocket = (SSLSocket) sf.createSocket(serverAddress, port);
@@ -104,7 +103,7 @@ public class MySharingClient {
 
             System.out.println("[CLIENT] " + statusCode + "\n[CLIENT] Autenticação bem sucedida.");
 
-            CommandLineInterface cli = new CommandLineInterface(sslSocket, in, out);
+            CommandLineInterface cli = new CommandLineInterface(sslSocket, in, out, userId);
             cli.start();
 
         } catch (Exception e) {

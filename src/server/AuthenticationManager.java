@@ -2,7 +2,7 @@ package server;
 
 import server.models.StatusCode;
 import server.models.User;
-import server.utils.SecurityUtils;
+import server.utils.ServerSecurityUtils;
 
 public class AuthenticationManager {
     public static AuthenticationManager INSTANCE;
@@ -96,7 +96,7 @@ public class AuthenticationManager {
         }
 
         try {
-            return SecurityUtils.verifyPassword(passwd, user.toString());
+            return ServerSecurityUtils.verifyPassword(passwd, user.toString());
         } catch (Exception e) {
             System.err.println("[AUTHENTICATION MANAGER] Erro ao verificar a password: " + e.getMessage());
             return false;

@@ -1,7 +1,7 @@
 package server;
 
 import server.models.User;
-import server.utils.SecurityUtils;
+import server.utils.ServerSecurityUtils;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -98,7 +98,7 @@ public class UserStorageManager {
         }
 
         try {
-            String securePassword = SecurityUtils.genSecurePassword(user, password);
+            String securePassword = ServerSecurityUtils.genSecurePassword(user, password);
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE_PATH, true))) {
                 writer.write(securePassword);
                 writer.newLine();

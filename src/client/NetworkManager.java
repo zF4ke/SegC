@@ -2,19 +2,17 @@ package client;
 
 import server.models.*;
 import server.utils.NetworkUtils;
-
-import client.ClientSecurityUtils;
+import shared.FileSecurityUtils;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.PrivateKey;
 
 
 public class NetworkManager {
     private final DataInputStream in;
     private final DataOutputStream out;
-    private final String KEYSTORE_PATH = "client_keys/keystore.client";
-    private KeyStoreManager ksm;
 
     /**
      * Create a new network manager.
@@ -25,8 +23,6 @@ public class NetworkManager {
     public NetworkManager(DataInputStream in, DataOutputStream out) {
         this.in = in;
         this.out = out;
-        this.ksm = new KeyStoreManager(KEYSTORE_PATH);
-        
     }
 
     /**
@@ -34,9 +30,10 @@ public class NetworkManager {
      *
      * @param workspaceName the workspace name
      */
-    public void createWorkspace(String workspaceName) {
+    public void createWorkspace(String workspaceName, String workspacePassword) {
         BodyJSON body = new BodyJSON();
         body.put("workspaceName", workspaceName);
+        body.put("workspacePassword", workspacePassword);
 
         Response response = sendRequest(body, "createworkspace");
         if (response != null) {
@@ -80,10 +77,11 @@ public class NetworkManager {
     /**
      * Sends a request to the server to upload files to a workspace.
      *
+     * @param userId the user ID
      * @param workspaceId the workspace ID
      * @param files the files
      */
-    public void uploadFilesToWorkspace(String workspaceId, String[] files) {
+    public void uploadFilesToWorkspace(String userId, String workspaceId, String[] files) {
         // 1. check if the user has permission to upload files to the workspace
         BodyJSON verifyBody = new BodyJSON();
         verifyBody.put("action", "verify");
@@ -102,7 +100,8 @@ public class NetworkManager {
         for (String file : files) {
             try {
 
-                File signatureFile = ClientSecurityUtils.createSignedFile(file, ksm.getPrivateKey());
+                PrivateKey privateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(userId);
+                File signatureFile = FileSecurityUtils.createSignedFile(file, privateKey);
                 StatusCode fileStatus = sendFileToServer(file,signatureFile.getPath(), workspaceId, in, out);
                 //new code starts 
                 

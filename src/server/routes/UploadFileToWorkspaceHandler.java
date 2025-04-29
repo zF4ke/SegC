@@ -18,9 +18,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import client.KeyStoreManager;
 import client.TrustStoreManager;
-import server.utils.SecurityUtils;
+import server.utils.ServerSecurityUtils;
 
 public class UploadFileToWorkspaceHandler implements RouteHandler {
     private static final String TEMP_DIR = "data/temp_files";
@@ -381,7 +380,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             if (publicKey == null) {
                 return NetworkUtils.createErrorResponse(request, "Chave pública não encontrada");
             }
-            if (SecurityUtils.verifySignedFile(session.tempFilePath, signatureSession.tempFilePath, publicKey)) {
+            if (ServerSecurityUtils.verifySignedFile(session.tempFilePath, signatureSession.tempFilePath, publicKey)) {
                 System.out.println("[FILE UPLOAD HANDLER] Assinatura verificada com sucesso");
             } else {
                 System.out.println("[FILE UPLOAD HANDLER] Assinatura inválida");

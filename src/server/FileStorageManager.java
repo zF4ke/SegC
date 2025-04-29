@@ -1,10 +1,7 @@
 package server;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -137,6 +134,42 @@ public class FileStorageManager {
         return true;
     }
 
+
+
+    /**
+     * Saves a workspace key file (e.g. "workspace001.key.userId") into the workspace directory.
+     *
+     * @param workspaceId the identifier of the workspace (must match its folder under data/workspaces)
+     * @param keyFileName the filename for the key (e.g. "<workspaceId>.key.<userId>")
+     * @param data        the raw bytes to write (typically Base64-encoded salt:key)
+     * @return true if the file was saved successfully, false otherwise
+     */
+    public boolean saveWorkspaceKey(String workspaceId, String keyFileName, byte[] data) {
+        Path workspaceDir = Paths.get(WORKSPACES_DIR_PATH + workspaceId);
+        Path keyFilePath = workspaceDir.resolve(keyFileName);
+
+        // Check if the workspace directory exists
+        if (!Files.exists(workspaceDir)) {
+            System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+            return false;
+        }
+
+        // Check if the key file already exists
+        if (Files.exists(keyFilePath)) {
+            System.err.println("[FILE STORAGE] Arquivo de chave já existe: " + keyFileName);
+            return false;
+        }
+
+        try {
+            // Write the data to the key file
+            Files.write(keyFilePath, data);
+            return true;
+        } catch (IOException e) {
+            System.err.println("[FILE STORAGE] Erro ao salvar arquivo de chave: " + e.getMessage());
+            return false;
+        }
+    }
+
     /**
      * Add a user to the workspace.
      *
@@ -207,6 +240,91 @@ public class FileStorageManager {
             System.err.println("[FILE STORAGE] Erro ao adicionar usuário ao workspace: " + e.getMessage());
             return false;
         }
+    }
+
+    public boolean removeUserFromWorkspace(String workspaceId, String userId) {
+        MySharingServer.verifyWorkspacesMac();
+
+        try {
+            File file = new File(WORKSPACES_FILE_PATH);
+            Scanner scanner = new Scanner(file);
+            StringBuilder newContent = new StringBuilder();
+            boolean workspaceFound = false;
+
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] parts = line.split(":");
+
+                int NUM_PARTS = 3;
+                if (parts.length != NUM_PARTS) {
+                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                    continue;
+                }
+
+                String id = parts[0];
+                String ownerUsername = parts[1];
+                List<String> members = new ArrayList<>(Arrays.asList(parts[2].split(",")));
+
+                if (id.equals(workspaceId)) {
+                    workspaceFound = true;
+
+                    if (!members.contains(userId)) {
+                        System.err.println("[FILE STORAGE] Usuário não é membro do workspace: " + userId);
+                        return false;
+                    }
+
+                    members.remove(userId);
+                    newContent
+                            .append(id)
+                            .append(":")
+                            .append(ownerUsername)
+                            .append(":");
+                    for (String member : members) {
+                        newContent.append(member).append(",");
+                    }
+                    if (!members.isEmpty()) {
+                        newContent.deleteCharAt(newContent.length() - 1);
+                    }
+                } else {
+                    newContent.append(line);
+                }
+
+                newContent.append("\n");
+            }
+
+            if (!workspaceFound) {
+                System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+                return false;
+            }
+
+            FileWriter fileWriter = new FileWriter(file);
+            fileWriter.write(newContent.toString());
+            fileWriter.close();
+
+            MySharingServer.updateWorkspacesMac();
+            return true;
+        } catch (IOException e) {
+            System.err.println("[FILE STORAGE] Erro ao remover usuário do workspace: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get the path of a workspace.
+     *
+     * @param workspaceId the workspace ID
+     * @return the path of the workspace
+     */
+    public String getWorkspacePath(String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
+        File workspaceDir = new File(WORKSPACES_DIR_PATH + workspaceId);
+        if (!workspaceDir.exists()) {
+            System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+            return null;
+        }
+
+        return workspaceDir.getAbsolutePath();
     }
 
     /**

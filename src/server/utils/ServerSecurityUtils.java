@@ -4,33 +4,35 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.InvalidKeyException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.Signature;
+import java.security.*;
+import java.security.cert.Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
 
-public class SecurityUtils {
-    public static final int DEFAULT_ITERATION_COUNT = 100000;
+public class ServerSecurityUtils {
+    private static final int SALT_LENGTH = 16;
+    private static final int HASH_LENGTH = 256;
+    public static final int DEFAULT_ITERATION_COUNT = 10000;
     public static final String MAC_ALGORITHM = "HmacSHA256";
+    public static final String TRUSTSTORE_PATH = "server_keys/truststore.server";
+    public static final String TRUSTSTORE_PASS = "123456";
+    public static final String KEYSTORE_PATH = "server_keys/keystore.server";
 
     public static byte[] genSalt() {
         SecureRandom sr = new SecureRandom();
-        byte[] salt = new byte[100];
+        byte[] salt = new byte[SALT_LENGTH];
         sr.nextBytes(salt);
         return salt;
     }
 
     public static SecretKey genSecretKey(String password, byte[] salt, int iterationCount)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterationCount, 256);
-        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterationCount, HASH_LENGTH);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
         return skf.generateSecret(spec);
     }
 
@@ -105,6 +107,36 @@ public class SecurityUtils {
         return verifyMac(expectedMac, actualMac);
     }
 
+    // getUserPublicKeyFromTruststore
+    /**
+     * Retrieves the public key for a given user alias from the server truststore.
+     *
+     * @param alias the alias under which the user's certificate is stored in the truststore
+     * @return the PublicKey if found, or null if not found or on error
+     */
+    public static PublicKey getUserPublicKeyFromTruststore(String alias) {
+        try {
+            KeyStore trustStore = KeyStore.getInstance("PKCS12");
+            try (FileInputStream fis = new FileInputStream(TRUSTSTORE_PATH)) {
+                trustStore.load(fis, TRUSTSTORE_PASS.toCharArray());
+            }
+
+            // Lookup the certificate for the given alias
+            Certificate cert = trustStore.getCertificate(alias);
+            if (cert == null) {
+                System.err.println("[SECURITY UTILS] Certificado não encontrado para o alias: " + alias);
+                return null;
+            }
+
+            // Return the public key from the certificate
+            return cert.getPublicKey();
+
+        } catch (Exception e) {
+            System.err.println("[SECURITY UTILS] Erro ao obter a chave pública do truststore: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
 
     //TODO this is from the SecutityUtils class found in the client, but it was neede in the server
     public static final String ALGORITHM = "SHA256withRSA";
@@ -136,5 +168,4 @@ public class SecurityUtils {
         }
         return false;
     }
-
 }

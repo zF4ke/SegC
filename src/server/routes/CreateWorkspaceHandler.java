@@ -13,13 +13,14 @@ public class CreateWorkspaceHandler implements RouteHandler {
             User user = request.getAuthenticatedUser();
             BodyJSON body = request.getBodyJSON();
             String workspaceName = body.get("workspaceName");
+            String workspacePassword = body.get("workspacePassword");
 
             if (!InputUtils.isValidWorkspaceId(workspaceName)) {
                 return NetworkUtils.createErrorResponse(request, "Nome do workspace inválido.");
             }
 
             WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
-            StatusCode status = workspaceManager.createWorkspace(user.getUserId(), workspaceName);
+            StatusCode status = workspaceManager.createWorkspace(user.getUserId(), workspaceName, workspacePassword);
 
             if (status == StatusCode.OK) {
                 BodyJSON responseBody = new BodyJSON();

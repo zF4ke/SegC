@@ -7,12 +7,10 @@ import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Scanner;
-import server.utils.SecurityUtils;
+import server.utils.ServerSecurityUtils;
 
 /**
  * The server class.
@@ -81,10 +79,10 @@ public class MySharingServer {
      */
     private static void verifyFilesIntegrity() {
         try {
-            if (!SecurityUtils.verifyFileMac(USERS_FILE_PATH, USERS_MAC_FILE_PATH, serverKey)) {
+            if (!ServerSecurityUtils.verifyFileMac(USERS_FILE_PATH, USERS_MAC_FILE_PATH, serverKey)) {
                 handleMacIssue(USERS_FILE_PATH, USERS_MAC_FILE_PATH, "users");
             }
-            if (!SecurityUtils.verifyFileMac(WORKSPACES_FILE_PATH, WORKSPACES_MAC_FILE_PATH, serverKey)) {
+            if (!ServerSecurityUtils.verifyFileMac(WORKSPACES_FILE_PATH, WORKSPACES_MAC_FILE_PATH, serverKey)) {
                 handleMacIssue(WORKSPACES_FILE_PATH, WORKSPACES_MAC_FILE_PATH, "workspaces");
             }
         } catch (Exception e) {
@@ -102,7 +100,7 @@ public class MySharingServer {
             return;
         }
         try {
-            if (!SecurityUtils.verifyFileMac(USERS_FILE_PATH, USERS_MAC_FILE_PATH, serverKey)) {
+            if (!ServerSecurityUtils.verifyFileMac(USERS_FILE_PATH, USERS_MAC_FILE_PATH, serverKey)) {
                 System.err.println("[SERVER] MAC inválido. O arquivo de usuários pode ter sido comprometido.");
                 System.err.println("[SERVER] Sistema comprometido! A encerrar...");
                 System.exit(1);
@@ -120,8 +118,8 @@ public class MySharingServer {
             return;
         }
         try {
-            byte[] mac = SecurityUtils.genFileMac(USERS_FILE_PATH, serverKey);
-            SecurityUtils.writeMacOnMacFile(USERS_MAC_FILE_PATH, mac);
+            byte[] mac = ServerSecurityUtils.genFileMac(USERS_FILE_PATH, serverKey);
+            ServerSecurityUtils.writeMacOnMacFile(USERS_MAC_FILE_PATH, mac);
         } catch (Exception e) {
             System.err.println("[SERVER] Erro ao atualizar MAC do arquivo de Users: " + e.getMessage());
         }
@@ -135,7 +133,7 @@ public class MySharingServer {
             return;
         }
         try {
-            if (!SecurityUtils.verifyFileMac(WORKSPACES_FILE_PATH, WORKSPACES_MAC_FILE_PATH, serverKey)) {
+            if (!ServerSecurityUtils.verifyFileMac(WORKSPACES_FILE_PATH, WORKSPACES_MAC_FILE_PATH, serverKey)) {
                 System.err.println("[SERVER] MAC inválido. O arquivo de workspaces pode ter sido comprometido.");
                 System.err.println("[SERVER] Sistema comprometido! A encerrar...");
                 System.exit(1);
@@ -153,8 +151,8 @@ public class MySharingServer {
             return;
         }
         try {
-            byte[] mac = SecurityUtils.genFileMac(WORKSPACES_FILE_PATH, serverKey);
-            SecurityUtils.writeMacOnMacFile(WORKSPACES_MAC_FILE_PATH, mac);
+            byte[] mac = ServerSecurityUtils.genFileMac(WORKSPACES_FILE_PATH, serverKey);
+            ServerSecurityUtils.writeMacOnMacFile(WORKSPACES_MAC_FILE_PATH, mac);
         } catch (Exception e) {
             System.err.println("[SERVER] Erro ao atualizar MAC do arquivo de Workspaces: " + e.getMessage());
         }
@@ -175,8 +173,8 @@ public class MySharingServer {
             Scanner scanner = new Scanner(System.in); // Nao fechar este scanner
             String answer = scanner.nextLine();
             if (answer.equalsIgnoreCase("s")) {
-                byte[] mac = SecurityUtils.genFileMac(filePath, serverKey);
-                SecurityUtils.writeMacOnMacFile(macFilePath, mac);
+                byte[] mac = ServerSecurityUtils.genFileMac(filePath, serverKey);
+                ServerSecurityUtils.writeMacOnMacFile(macFilePath, mac);
                 System.out.println("[SERVER] MAC calculado e armazenado com sucesso.");
             } else {
                 if (macVerificationFlag.equals("users")) {

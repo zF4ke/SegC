@@ -1,9 +1,20 @@
 package server;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.security.PublicKey;
+import java.util.Base64;
+
 import server.models.StatusCode;
 import server.models.Workspace;
 import server.utils.InputUtils;
+import server.utils.ServerSecurityUtils;
+
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class WorkspaceManager {
     private static WorkspaceManager INSTANCE;
@@ -29,54 +40,98 @@ public class WorkspaceManager {
     /**
      * Create a workspace for a user
      *
-     * @param userId The ID of the user creating the workspace
-     * @param workspace The name of the workspace
-     * @return StatusCode.OK if the workspace was created, StatusCode.NOK if the workspace could not be created, StatusCode.BAD_REQUEST if the input is invalid
+     * @param userId ID of the user creating the workspace
+     * @param workspaceId ID of the workspace
+     * @param workspacePassword Password for the workspace
+     * @return StatusCode.OK or NOK
      */
-    public StatusCode createWorkspace(String userId, String workspace) {
-        if (workspace == null || workspace.isEmpty() || userId == null || userId.isEmpty()) {
+    public StatusCode createWorkspace(String userId, String workspaceId, String workspacePassword) {
+        // Validações iniciais
+        if (workspaceId == null || workspaceId.isEmpty() || userId == null || userId.isEmpty()
+                || workspacePassword == null || workspacePassword.isEmpty()) {
             return StatusCode.BAD_REQUEST;
         }
-
-        if (!InputUtils.isValidWorkspaceId(workspace) || !InputUtils.isValidUserId(userId)) {
+        if (!InputUtils.isValidWorkspaceId(workspaceId) || !InputUtils.isValidUserId(userId)) {
             return StatusCode.NOK;
         }
 
-        if (fsm.createWorkspace(userId, workspace)) {
-            return StatusCode.OK;
-        }
+        try {
+            // Criar diretório do workspace
+            if (!fsm.createWorkspace(userId, workspaceId)) {
+                return StatusCode.NOK;
+            }
 
-        return StatusCode.NOK;
+            // Gerar salt e derivar chave AES via PBKDF2WithHmacSHA256
+            byte[] salt = ServerSecurityUtils.genSalt();
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            PBEKeySpec spec = new PBEKeySpec(workspacePassword.toCharArray(), salt,
+                    ServerSecurityUtils.DEFAULT_ITERATION_COUNT, 128);
+            SecretKey tmp = factory.generateSecret(spec);
+            SecretKey aesKey = new SecretKeySpec(tmp.getEncoded(), "AES");
+
+            // Cifrar a chave AES com RSA/OAEP com a public key do owner
+            PublicKey ownerPub = ServerSecurityUtils.getUserPublicKeyFromTruststore(userId);
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+            rsaCipher.init(Cipher.ENCRYPT_MODE, ownerPub);
+            byte[] encryptedKey = rsaCipher.doFinal(aesKey.getEncoded());
+
+            // Concatenar salt + encryptedKey em Base64
+            String encodedSalt = Base64.getEncoder().encodeToString(salt);
+            String encodedKey  = Base64.getEncoder().encodeToString(encryptedKey);
+            String keyData     = encodedSalt + ":" + encodedKey;
+
+            // Gravar o ficheiro .key.<userId> no workspace
+            String keyFileName = workspaceId + ".key." + userId;
+            boolean saved = fsm.saveWorkspaceKey(workspaceId, keyFileName, keyData.getBytes(StandardCharsets.UTF_8));
+            if (!saved) {
+                return StatusCode.NOK;
+            }
+
+            return StatusCode.OK;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return StatusCode.NOK;
+        }
     }
 
-    public StatusCode addUserToWorkspace(String userId, String newUser, String workspaceId) {
+    /**
+     * Add a user to a workspace
+     *
+     * @param ownerId The ID of the user who owns the workspace
+     * @param newUserId The ID of the user to be added
+     * @param workspaceId The ID of the workspace
+     * @return StatusCode.OK if the user was added, StatusCode.NOK if the user could not be added, StatusCode.NOWS if the workspace does not exist, StatusCode.NOPERM if the user does not have permission to add the user
+     */
+    public StatusCode addUserToWorkspace(String ownerId, String newUserId, String workspaceId) {
         Workspace ws = fsm.getWorkspace(workspaceId);
         if (ws == null) {
             return StatusCode.NOWS;
         }
 
-        if (!InputUtils.isValidUserId(newUser)) {
+        if (!InputUtils.isValidUserId(newUserId)) {
             return StatusCode.NOK;
         }
 
         AuthenticationManager authManager = AuthenticationManager.getInstance();
-        if (authManager.getUser(newUser) == null) {
+        if (authManager.getUser(newUserId) == null) {
             return StatusCode.NOUSER;
         }
 
-        if (ws.hasMember(newUser)) {
+        if (ws.hasMember(newUserId)) {
             return StatusCode.NOPERM;
         }
 
-        if (ws.isOwner(userId)) {
-            if (fsm.addUserToWorkspace(workspaceId, newUser)) {
-                return StatusCode.OK;
-            }
-        } else {
+        if (!ws.isOwner(ownerId)) {
             return StatusCode.NOPERM;
         }
 
-        return StatusCode.NOPERM;
+        boolean added = fsm.addUserToWorkspace(workspaceId, newUserId);
+        if (!added) {
+            return StatusCode.NOK;
+        }
+
+        return StatusCode.OK;
     }
 
     /**
