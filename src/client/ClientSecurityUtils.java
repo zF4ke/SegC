@@ -3,13 +3,18 @@ package client;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.*;
+import java.util.Base64;
 
 /*
  * Nota:
@@ -189,105 +194,134 @@ public class ClientSecurityUtils {
     }
 
 
-    //genrate java doc explain what the function does
     /**
      * Encrypts a file using the given key.
      *
      * @param filePath the path to the file to be encrypted
-     * @param key      the key to be used for encryption
+     * @param keyFile the file containing the key
+     * @param userId the user ID of the key
      * @return the path to the encrypted file
      */
-    //TODO check if the file is created in the same directory as the original file
-    public static String encriptFile(String filePath, Key key) {
+    public static String encryptFile(String filePath, File keyFile, String userId) {
         try {
-            //Bocado de codigo que vai buscar a chave á keystore
-            /*
-            KeyStoreManager ksm = new KeyStoreManager();
-            KeyStore kStore = ksm.createKeyStore("123456");
-            PrivateKey privateKey = ksm.getPrivateKey();
-            PublicKey publicKey = ksm.getPublicKey();
-            */
-
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.ENCRYPT_MODE, key);
-
-            FileInputStream fis;
-            FileOutputStream fos;
-            CipherOutputStream cos;
-
-            String encryptedPath = filePath + ".cif";
-
-            fis = new FileInputStream(filePath);
-            fos = new FileOutputStream(encryptedPath);
-
-            cos = new CipherOutputStream(fos, cipher);
-            byte[] b = new byte[16];
-            int i = fis.read(b);
-            while (i != -1) {
-                cos.write(b, 0, i);
-                i = fis.read(b);
+            // Step 1: Read and parse key file: expected format <salt>:<wrappedKey>
+            String keyData = Files.readString(keyFile.toPath());
+            String[] parts = keyData.split(":", 2);
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("Invalid key file format");
             }
 
-            cos.close();
-            fis.close();
-            fos.close();
+            byte[] salt = Base64.getDecoder().decode(parts[0]);
+            byte[] wrappedAesKey = Base64.getDecoder().decode(parts[1]);
 
+            // Step 2: Load private RSA key of the owner
+            PrivateKey ownerPrivateKey = getUserPrivateKeyFromKeyStore(userId);
 
+            // Step 3: Unwrap the AES key using RSA/OAEP
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+            rsaCipher.init(Cipher.DECRYPT_MODE, ownerPrivateKey);
+            byte[] aesBytes = rsaCipher.doFinal(wrappedAesKey);
+            SecretKey aesKey = new SecretKeySpec(aesBytes, "AES");
+
+            // Step 4: Init AES cipher for encryption
+            Cipher aesCipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            SecureRandom secureRandom = new SecureRandom();
+            byte[] iv = new byte[16];
+            secureRandom.nextBytes(iv);
+            IvParameterSpec ivSpec = new IvParameterSpec(iv);
+            aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
+
+            // Step 5: Create output stream & write IV + salt first
+            String encryptedPath = filePath + ".enc";
+            try (FileOutputStream fos = new FileOutputStream(encryptedPath);
+                 CipherOutputStream cos = new CipherOutputStream(fos, aesCipher);
+                 FileInputStream fis = new FileInputStream(filePath)) {
+
+                fos.write(iv);    // Write IV first
+                fos.write(salt);  // Then write salt
+
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = fis.read(buffer)) != -1) {
+                    cos.write(buffer, 0, read);
+                }
+            }
+
+            System.out.println("[CLIENT] File encrypted with AES and saved to: " + encryptedPath);
             return encryptedPath;
 
         } catch (Exception e) {
             System.err.println("[CLIENT] Error while encrypting the file: " + e.getMessage());
-            System.err.println("[CLIENT] System compromised! Shutting down...");
-            System.exit(1);
+            e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
     /**
-     * Decrypts a file using the given key.
+     * Decrypts a file previously encrypted with AES using the corresponding workspace key.
+     * The file must begin with [16 bytes IV][SALT][AES-Ciphered content...].
      *
-     * @param filePath the path to the file to be decrypted
-     * @param key      the key to be used for decryption
-     * @return the path to the decrypted file
+     * @param encryptedFilePath the path to the .enc file
+     * @param keyFile           the workspace key file (e.g., ws001.key.jose)
+     * @param userId            the ID of the user performing decryption
+     * @return the path to the decrypted file, or null on failure
      */
-    //TODO check if the file is created in the same directory as the original file
-    public static String decriptFile(String filePath, Key key) {
-
+    public static String decryptFile(String encryptedFilePath, File keyFile, String userId) {
         try {
-            Cipher c = Cipher.getInstance("AES");
-            c.init(Cipher.DECRYPT_MODE, key);
-
-            FileInputStream fis;
-            FileOutputStream fos;
-            CipherInputStream cis;
-
-            String decryptedPath;
-
-            // This will remove the ".cif" extension from the file name added in the encryptFile method
-            if (filePath.endsWith(".cif")) {
-                decryptedPath = filePath.substring(0, filePath.length() - 4);
-            } else {
-                throw new IllegalArgumentException("File is not encrypted (.cif extension missing)");
-            }
-            fis = new FileInputStream(filePath);
-            fos = new FileOutputStream(decryptedPath);
-            cis = new CipherInputStream(fis, c);
-
-            byte[] b = new byte[16];
-            int i = cis.read(b);
-            while (i != -1) {
-                fos.write(b, 0, i);
-                i = cis.read(b);
+            // Step 1: Read and parse key file (format: <salt>:<wrappedKey>)
+            String keyData = Files.readString(keyFile.toPath());
+            String[] parts = keyData.split(":", 2);
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("Invalid key file format");
             }
 
-            fos.close();
-            cis.close();
+            byte[] salt = Base64.getDecoder().decode(parts[0]);
+            byte[] wrappedAesKey = Base64.getDecoder().decode(parts[1]);
+
+            // Step 2: Load user's private RSA key
+            PrivateKey privateKey = getUserPrivateKeyFromKeyStore(userId);
+
+            // Step 3: Unwrap AES key with RSA/OAEP
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+            rsaCipher.init(Cipher.DECRYPT_MODE, privateKey);
+            byte[] aesKeyBytes = rsaCipher.doFinal(wrappedAesKey);
+            SecretKey aesKey = new SecretKeySpec(aesKeyBytes, "AES");
+
+            // Step 4: Read IV and salt from encrypted file
+            FileInputStream fis = new FileInputStream(encryptedFilePath);
+            byte[] iv = new byte[16];
+            if (fis.read(iv) != 16) {
+                fis.close();
+                throw new IOException("Failed to read IV");
+            }
+
+            // Skip salt (we already got it from the key file, no need to re-parse it)
+            fis.skip(salt.length);
+
+            // Step 5: Init AES cipher
+            Cipher aesCipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            IvParameterSpec ivSpec = new IvParameterSpec(iv);
+            aesCipher.init(Cipher.DECRYPT_MODE, aesKey, ivSpec);
+
+            // Step 6: Stream decryption to output file
+            String outputPath = encryptedFilePath.replaceFirst("\\.enc$", "");
+            try (CipherInputStream cis = new CipherInputStream(fis, aesCipher);
+                 FileOutputStream fos = new FileOutputStream(outputPath)) {
+
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = cis.read(buffer)) != -1) {
+                    fos.write(buffer, 0, read);
+                }
+            }
+
+            System.out.println("[CLIENT] File decrypted successfully to: " + outputPath);
+            return outputPath;
 
         } catch (Exception e) {
             System.err.println("[CLIENT] Error while decrypting the file: " + e.getMessage());
-            System.err.println("[CLIENT] System compromised! Shutting down...");
-            System.exit(1);
+            e.printStackTrace();
+            return null;
         }
-        return null;
     }
 }

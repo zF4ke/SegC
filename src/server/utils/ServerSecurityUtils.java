@@ -149,7 +149,7 @@ public class ServerSecurityUtils {
      * @return true if the signature is valid, false otherwise
      */
     //TODO check if the file is created in the same directory as the original file
-    public static boolean verifySignedFile(String filePath, String signatureFilePath  ,PublicKey publicKey) {
+    public static boolean verifySignedFile(String filePath, String signatureFilePath, PublicKey publicKey) {
         try {
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initVerify(publicKey);

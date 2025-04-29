@@ -372,8 +372,6 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             session.isComplete = true;
             signatureSession.isComplete = true;
 
-
-            //TODO 
             TrustStoreManager tsm = new TrustStoreManager(KEYSTORE_PATH);
             PublicKey publicKey = tsm.getCertificate(user.getUserId()).getPublicKey();
             if (publicKey == null) {

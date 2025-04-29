@@ -186,8 +186,42 @@ public class NetworkManager {
             try {
 
                 PrivateKey privateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(userId);
-                File signatureFile = ClientSecurityUtils.createSignedFile(file,userId ,privateKey);
-                StatusCode fileStatus = sendFileToServerWithSignature(file,signatureFile.getPath(), workspaceId, in, out);
+
+                // get key from the server
+                BodyJSON bodyKey = new BodyJSON();
+                bodyKey.put("action", "init");
+                bodyKey.put("workspaceId", workspaceId);
+                Response responseKey = sendRequest(bodyKey, "downloadkeyfromworkspace");
+                File keyFile = null;
+
+                if (responseKey != null) {
+                    try {
+                        StatusCode status = responseKey.getStatus();
+                        if (status != StatusCode.OK) {
+                            System.out.println("Resposta: " + responseKey.getStatus());
+                            return;
+                        }
+
+                        String fileName = workspaceId + ".key." + userId;
+                        StatusCode statusKey = receiveKeyFromServer(fileName, workspaceId, in, out);
+                        if (statusKey != StatusCode.OK) {
+                            System.out.println("Resposta: " + statusKey);
+                            return;
+                        }
+
+                        keyFile = new File(fileName);
+                    } catch (Exception e) {
+                        System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+                    }
+                }
+
+                // use ClientSecurityUtils.encryptFile
+                //...
+
+                String encryptedFile = ClientSecurityUtils.encryptFile(file, keyFile, userId);
+
+                File signatureFile = ClientSecurityUtils.createSignedFile(encryptedFile, userId, privateKey);
+                StatusCode fileStatus = sendFileToServerWithSignature(file, signatureFile.getPath(), workspaceId, in, out);
                 if (!signatureFile.delete()) {
                     System.err.println("[CLIENT] Erro ao apagar o ficheiro de assinatura: " + signatureFile.getPath());
                 }
