@@ -214,7 +214,7 @@ public class NetworkManager {
      * @param workspaceId the workspace id
      * @param files the files
      */
-    public void downloadFilesFromWorkspace(String workspaceId, String[] files) {
+    public void downloadFilesFromWorkspace(String user,String workspaceId, String[] files) {
         BodyJSON body = new BodyJSON();
         body.put("workspaceId", workspaceId);
         body.put("action", "verify");
@@ -231,7 +231,7 @@ public class NetworkManager {
         boolean first = true;
         for (String file : files) {
             try {
-                StatusCode status = receiveFileFromServerWithSignature(file, workspaceId, in, out);
+                StatusCode status = receiveFileFromServerWithSignature(user,file, workspaceId, in, out);
                 if (!first) {
                     System.out.println("\t  " + file + ": " + status);
                 } else {
@@ -370,7 +370,7 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static StatusCode receiveFileFromServerWithSignature(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode receiveFileFromServerWithSignature(String user,String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         // Step 1: Initialize the download
         BodyJSON initBody = new BodyJSON();
         initBody.put("action", "init");
@@ -457,14 +457,143 @@ public class NetworkManager {
         );
 
         out.write(completeRequest.toByteArray());
-        Response completeResponse = Response.fromStream(in);
 
+        Response completeResponse = Response.fromStream(in);
         if (completeResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao finalizar download!");
             Files.deleteIfExists(Paths.get(fileName));
 
             return completeResponse.getStatus();
         }
+
+        
+        // Step 4: Init the signature file
+        initBody = new BodyJSON();
+        initBody.put("action", "init_signature");
+        initBody.put("fileName", fileName);
+        initBody.put("workspaceId", workspaceId);
+
+        initRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "downloadfilefromworkspace",
+                initBody
+        );
+
+        out.write(initRequest.toByteArray());
+        initResponse = Response.fromStream(in);
+        //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+
+        if (initResponse.getStatus() != StatusCode.OK) {
+            //System.err.println("[CLIENT] Erro ao inicializar download");
+            return StatusCode.NOT_FOUND;
+        }
+
+        initResponseBody = initResponse.getBodyJSON();
+        totalChunks = Integer.parseInt(initResponseBody.get("chunks"));
+        fileSize = Integer.parseInt(initResponseBody.get("size"));
+        String signatureFileName = initResponseBody.get("fileName");
+        fileId = initResponseBody.get("fileId");
+
+
+        // Step 5 : Receive signature file chunks
+        try (FileOutputStream fileOut2 = new FileOutputStream(signatureFileName)) {
+            for (int chunkId = 0; chunkId < totalChunks; chunkId++) {
+                BodyJSON chunkBody = new BodyJSON();
+                chunkBody.put("action", "signature_chunk");
+                chunkBody.put("chunkId", String.valueOf(chunkId));
+                chunkBody.put("fileId", fileId);
+
+                Request chunkRequest = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.JSON,
+                        "downloadfilefromworkspace",
+                        chunkBody
+                );
+
+                out.write(chunkRequest.toByteArray());
+                Response chunkResponse = Response.fromStream(in);
+                if (!String.valueOf(chunkId).equals(chunkResponse.getHeader("CHUNK-ID"))) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(signatureFileName));
+                    return chunkResponse.getStatus();
+                }
+
+                if (!fileId.equals(chunkResponse.getHeader("FILE-ID"))) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(signatureFileName));
+                    return chunkResponse.getStatus();
+                }
+
+                //System.out.println("[CLIENT] Resposta de chunk " + chunkId + ": " + chunkResponse);
+
+                if (chunkResponse.getStatus() != StatusCode.OK) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(signatureFileName));
+                    return chunkResponse.getStatus();
+                }
+
+                BodyRaw chunkData = chunkResponse.getBodyRaw();
+                fileOut2.write(chunkData.toBytes());
+            }
+        } catch (IOException e) {
+            System.err.println("[CLIENT] Erro ao receber ficheiro: " + e.getMessage());
+            Files.deleteIfExists(Paths.get(fileName));
+            Files.deleteIfExists(Paths.get(signatureFileName));
+            return StatusCode.NOK;
+        }
+
+
+        //Step 6: Receive signature file completion
+
+        completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        completeRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "downloadfilefromworkspace",
+                completeBody
+        );
+
+        out.write(completeRequest.toByteArray());
+
+        completeResponse = Response.fromStream(in);
+        if (completeResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar download!");
+            Files.deleteIfExists(Paths.get(fileName));
+            Files.deleteIfExists(Paths.get(signatureFileName));
+
+            return completeResponse.getStatus();
+        }
+
+
+        if (completeResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar download!");
+            Files.deleteIfExists(Paths.get(fileName));
+            Files.deleteIfExists(Paths.get(signatureFileName));
+
+            return completeResponse.getStatus();
+        }
+
+
+        String userId = signatureFileName.split("\\.")[2];
+        TrustStoreManager trustStoreManager = new TrustStoreManager(user);
+        PublicKey publicKey = ClientSecurityUtils.getUserPublicKeyFromKeyStore(userId);
+
+
+        if (ClientSecurityUtils.verifySignedFile(fileName, signatureFileName, publicKey)) {
+            System.out.println("[CLIENT] Ficheiro recebido com sucesso e verificado!");
+        } else {
+            System.err.println("[CLIENT] Ficheiro recebido mas não verificado!");
+            Files.deleteIfExists(Paths.get(fileName));
+            Files.deleteIfExists(Paths.get(signatureFileName));
+            return StatusCode.NOK;
+
+        }
+
+        
 
         //System.out.println("[CLIENT] Ficheiro recebido com sucesso!");
         return completeResponse.getStatus();

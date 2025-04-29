@@ -109,7 +109,7 @@ public class CommandLineInterface {
                             String[] validFiles = validFiles(files);
                             if (validFiles.length == 0) {break;}
 
-                            networkManager.downloadFilesFromWorkspace(workspace, files);
+                            networkManager.downloadFilesFromWorkspace(authenticatedUserId, workspace, files);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: DW");
                         }

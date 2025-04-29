@@ -467,14 +467,42 @@ public class FileStorageManager {
         return file.delete();
     }
 
-    public boolean isSignatureFileInWorkspace(String signatureFileName, String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
 
-        File file = getFile(signatureFileName, workspaceId);
-        if (file == null) {
+    //TODO
+    //REDO THIS
+    public boolean isSignatureFileInWorkspace(String fileName, String workspaceId) {
+        if (fileName == null || workspaceId == null) {
             return false;
         }
+        if (getSignatureFile(fileName, workspaceId) == null) {
+            return false;
+        } else {
+            return true;
+        }
+    }
 
-        return file.exists();
+    public File getSignatureFile(String fileName, String workspaceId) {
+        MySharingServer.verifyWorkspacesMac();
+
+        String signatureFileName = fileName + ".signed";
+
+        File baseFile = getFile(signatureFileName, workspaceId);
+        if (baseFile == null) {
+            return null;
+        }
+    
+        File directory = baseFile.getParentFile();
+        if (directory == null || !directory.isDirectory()) {
+            return null;
+        }
+    
+        String baseName = baseFile.getName(); 
+    
+        File[] matches = directory.listFiles((dir, name) -> name.startsWith(baseName));
+        if (matches != null && matches.length > 0) {
+            return matches[0]; 
+        }
+    
+        return null;
     }
 }

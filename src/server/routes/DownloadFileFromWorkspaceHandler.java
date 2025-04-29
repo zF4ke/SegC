@@ -240,16 +240,17 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
             return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
         }
 
-        if (!workspaceManager.isFileInWorkspace(filename, workspaceId)) {
+        if (!workspaceManager.isSignatureFileInWorkspace(filename, workspaceId)) {
             return NetworkUtils.createErrorResponse(request, StatusCode.NOK);
         }
 
-        File file = workspaceManager.getFile(filename, workspaceId);
+        File file = workspaceManager.getSignatureFile(filename, workspaceId);
         String fileId = UUID.randomUUID().toString();
  
         BodyJSON initBody = new BodyJSON();
-        initBody.put("action", "init");
+        initBody.put("action", "signature_init");
         initBody.put("fileId", fileId);
+        initBody.put("fileName", file.getName());
         initBody.put("size", String.valueOf(file.length()));
 
         int chunkSize = 1024 * 64; // 64KB chunks
@@ -274,8 +275,72 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
      * @return the response
      */
     private Response handleSignatureChunk(Request request) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'handleSignatureChunk'");
+        BodyJSON body = request.getBodyJSON();
+        String fileId = body.get("fileId");
+        User user = request.getAuthenticatedUser();
+        int chunkId = Integer.parseInt(body.get("chunkId"));
+
+        if (fileId == null) {
+            return NetworkUtils.createErrorResponse(request, "FILE-ID não fornecido");
+        }
+        if (user == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
+        }
+
+        FileDownloadSession session = downloadSessions.get(fileId);
+        if (session == null) {
+            return NetworkUtils.createErrorResponse(request, "Sessão de download não encontrada");
+        }
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        if (!session.isOwner(user) ||
+                !workspaceManager.isUserInWorkspace(user.getUserId(), session.workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer download deste ficheiro");
+        }
+        if (session.isComplete) {
+            return NetworkUtils.createErrorResponse(request, "Download já foi concluído");
+        }
+
+        if (chunkId != session.nextExpectedChunk) {
+            return NetworkUtils.createErrorResponse(request,
+                    "chunkId inválido, esperado: " + session.nextExpectedChunk);
+        }
+
+        // Step 2: Send file chunks
+        File file = new File(session.filePath);
+        try (FileInputStream fileIn = new FileInputStream(file)) {
+            byte[] buffer = new byte[CHUNK_SIZE];
+
+            // 1. Get the file
+            // 2. Get the right chunk to send to the client (chunkId * CHUNK_SIZE), starting from 0
+            // 3. Send the chunk to the client
+
+            long offset = (long) chunkId * CHUNK_SIZE;
+            fileIn.skip(offset);
+            int bytesRead = fileIn.read(buffer);
+            byte[] chunkData = new byte[bytesRead];
+            System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
+
+            int totalChunks = (int) Math.ceil((double) file.length() / CHUNK_SIZE);
+            session.nextExpectedChunk++;
+            if (session.nextExpectedChunk == totalChunks) {
+                session.isComplete = true;
+            }
+            BodyRaw chunkBody = new BodyRaw(chunkData);
+            Response chunkResponse = new Response(
+                    request.getUUID(),
+                    StatusCode.OK,
+                    BodyFormat.RAW,
+                    chunkBody);
+            chunkResponse.addHeader("FILE-ID", fileId);
+            chunkResponse.addHeader("CHUNK-ID", String.valueOf(chunkId));
+            chunkResponse.addHeader("TYPE", "CHUNK");
+
+            System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
+
+            return chunkResponse;
+        } catch (IOException e) {
+            return NetworkUtils.createErrorResponse(request, "Erro ao enviar chunk");
+        }
     }
 
     /**
@@ -285,8 +350,39 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
      * @return the response
      */
     private Response handleSignatureCompletion(Request request) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'handleSignatureCompletion'");
+        BodyJSON body = request.getBodyJSON();
+        String fileId = body.get("fileId");
+        User user = request.getAuthenticatedUser();
+
+        if (fileId == null) {
+            return NetworkUtils.createErrorResponse(request, "FILE-ID não fornecido");
+        }
+        if (user == null) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não autenticado");
+        }
+        
+        FileDownloadSession session = downloadSessions.get(fileId);
+        if (session == null) {
+            return NetworkUtils.createErrorResponse(request, "Sessão de download não encontrada");
+        }
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        if (!session.isOwner(user) ||
+                !workspaceManager.isUserInWorkspace(user.getUserId(), session.workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, "Utilizador não tem permissão para fazer download deste ficheiro");
+        }
+
+        BodyJSON completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        session.isComplete = true;
+        downloadSessions.remove(fileId);
+
+        return new Response(
+                request.getUUID(),
+                StatusCode.OK,
+                BodyFormat.JSON,
+                completeBody);
     }
 
 
