@@ -17,20 +17,22 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
 
 public class SecurityUtils {
-    public static final int DEFAULT_ITERATION_COUNT = 100000;
+    private static final int SALT_LENGTH = 16;
+    private static final int HASH_LENGTH = 256;
+    public static final int DEFAULT_ITERATION_COUNT = 10000;
     public static final String MAC_ALGORITHM = "HmacSHA256";
 
     public static byte[] genSalt() {
         SecureRandom sr = new SecureRandom();
-        byte[] salt = new byte[100];
+        byte[] salt = new byte[SALT_LENGTH];
         sr.nextBytes(salt);
         return salt;
     }
 
     public static SecretKey genSecretKey(String password, byte[] salt, int iterationCount)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterationCount, 256);
-        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBEWithHmacSHA256AndAES_256");
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterationCount, HASH_LENGTH);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
         return skf.generateSecret(spec);
     }
 
