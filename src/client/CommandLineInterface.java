@@ -37,7 +37,7 @@ public class CommandLineInterface {
     public void start() {
         while (true) {
             System.out.println("\n[CLIENT] Comandos disponiveis para uso:");
-            System.out.println("[CLIENT] CREATE <ws> # Criar um novo workspace - utilizador é Owner.");
+            System.out.println("[CLIENT] CREATE <ws> <password> # Criar um novo workspace - utilizador é Owner.");
             System.out.println("[CLIENT] ADD <user1> <ws> # Adicionar utilizador <user1> ao workspace <ws>. " +
                     "A operação ADD só funciona se o utilizador for o Owner do workspace <ws>");
             System.out.println("[CLIENT] UP <ws> <file1> ... <filen> # Adicionar ficheiros ao workspace.");

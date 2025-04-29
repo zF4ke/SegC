@@ -32,7 +32,7 @@ public class AddUserToWorkspaceHandler implements RouteHandler {
                     return NetworkUtils.createErrorResponse(request, "Sessão de upload inválida.");
                 }
 
-                String fileName = session.getFileName();
+                String fileName = workspaceId + ".key." + userToAdd;
                 String filePath = session.getTempFilePath();
 
                 File file = new File(filePath);

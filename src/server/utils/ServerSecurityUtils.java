@@ -18,9 +18,9 @@ public class ServerSecurityUtils {
     private static final int HASH_LENGTH = 256;
     public static final int DEFAULT_ITERATION_COUNT = 10000;
     public static final String MAC_ALGORITHM = "HmacSHA256";
-    public static final String TRUSTSTORE_PATH = "server_keys/truststore.server";
+    public static final String TRUSTSTORE_PATH = "server_keys/server.truststore";
     public static final String TRUSTSTORE_PASS = "123456";
-    public static final String KEYSTORE_PATH = "server_keys/keystore.server";
+    public static final String KEYSTORE_PATH = "server_keys/server.keystore";
 
     public static byte[] genSalt() {
         SecureRandom sr = new SecureRandom();

@@ -105,7 +105,7 @@ public class UploadKeyToWorkspaceHandler implements RouteHandler {
         long fileSize = Long.parseLong(body.get("size"));
         int chunks = Integer.parseInt(body.get("chunks"));
 
-        if (fileSize < 0 || chunks < 0 || !InputUtils.isValidFilename(fileName)) {
+        if (fileSize < 0 || chunks < 0) {
             return NetworkUtils.createErrorResponse(request, "Parâmetros inválidos");
         }
 

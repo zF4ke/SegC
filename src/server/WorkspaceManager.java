@@ -41,23 +41,23 @@ public class WorkspaceManager {
      * Create a workspace for a user
      *
      * @param userId ID of the user creating the workspace
-     * @param workspaceId ID of the workspace
+     * @param workspaceName Name of the workspace
      * @param workspacePassword Password for the workspace
      * @return StatusCode.OK or NOK
      */
-    public StatusCode createWorkspace(String userId, String workspaceId, String workspacePassword) {
+    public StatusCode createWorkspace(String userId, String workspaceName, String workspacePassword) {
         // Validações iniciais
-        if (workspaceId == null || workspaceId.isEmpty() || userId == null || userId.isEmpty()
+        if (workspaceName == null || workspaceName.isEmpty() || userId == null || userId.isEmpty()
                 || workspacePassword == null || workspacePassword.isEmpty()) {
             return StatusCode.BAD_REQUEST;
         }
-        if (!InputUtils.isValidWorkspaceId(workspaceId) || !InputUtils.isValidUserId(userId)) {
+        if (!InputUtils.isValidWorkspaceId(workspaceName) || !InputUtils.isValidUserId(userId)) {
             return StatusCode.NOK;
         }
 
         try {
             // Criar diretório do workspace
-            if (!fsm.createWorkspace(userId, workspaceId)) {
+            if (!fsm.createWorkspace(userId, workspaceName)) {
                 return StatusCode.NOK;
             }
 
@@ -81,6 +81,7 @@ public class WorkspaceManager {
             String keyData     = encodedKey + ":" + encodedSalt;
 
             // Gravar o ficheiro .key.<userId> no workspace
+            String workspaceId = userId + "_" + workspaceName;
             String keyFileName = workspaceId + ".key." + userId;
             boolean saved = fsm.saveWorkspaceKey(workspaceId, keyFileName, keyData.getBytes(StandardCharsets.UTF_8));
             if (!saved) {

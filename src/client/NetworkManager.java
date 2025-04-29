@@ -66,6 +66,7 @@ public class NetworkManager {
         bodyKey.put("action", "init");
         bodyKey.put("workspaceId", workspaceId);
         Response responseKey = sendRequest(bodyKey, "downloadkeyfromworkspace");
+        String fileId = null;
         if (responseKey != null) {
             try {
                 StatusCode status = responseKey.getStatus();
@@ -74,7 +75,7 @@ public class NetworkManager {
                     return;
                 }
 
-                String fileName = workspaceId + ".key." + user;
+                String fileName = workspaceId + ".key." + ownerId;
                 StatusCode statusKey = receiveKeyFromServer(fileName, workspaceId, in, out);
                 if (statusKey != StatusCode.OK) {
                     System.out.println("Resposta: " + statusKey);
@@ -82,8 +83,6 @@ public class NetworkManager {
                 }
 
                 File file = new File(fileName);
-
-                // do magic to decrypt the file and blabla
 //                When im adding a user to the workspace, i need to download the workspace key, decrypt it with the owner private key (on the client) and then encrypt it with the new user's public key. Then i send the key back to the server and it saves it as <ws>.key.<newuserid>
 //                Just like in the Upload/Download file To/From workspace handlers, I need actions and routes to do that, so please ajust the AddUserToWorkspaceHandler to do all that.
 
@@ -124,37 +123,36 @@ public class NetworkManager {
                 }
 
                 // send key to the server
-                File keyFile = new File(fileName);
-                StatusCode fileStatus = sendKeyToServer(keyFile.getPath(), workspaceId, in, out);
+                fileId = sendKeyToServer(newKeyFile.getPath(), workspaceId, in, out);
 
-                if (fileStatus != StatusCode.OK) {
-                    System.out.println("Resposta: " + fileStatus);
+                if (fileId == null) {
+                    System.out.println("Resposta: Erro ao adicionar o utilizador ao workspace");
                     return;
                 }
 
+                BodyJSON body = new BodyJSON();
+                body.put("user", user);
+                body.put("workspaceId", workspaceId);
+                body.put("keyFileId", fileId);
+
+                Response response = sendRequest(body, "addusertoworkspace");
+                if (response != null) {
+                    try {
+                        BodyJSON responseBody = response.getBodyJSON();
+                        String message = responseBody.get("message");
+                        if (message == null) message = "";
+
+                        System.out.println("Resposta: " + response.getStatus() + " # " + message);
+                    } catch (Exception e) {
+                        System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+                    }
+                }
+
                 // delete the file
-                Files.deleteIfExists(Paths.get(fileName));
+                Files.deleteIfExists(Paths.get(file.getPath()));
 
                 // delete the new key file
                 Files.deleteIfExists(Paths.get(newKeyFile.getPath()));
-            } catch (Exception e) {
-                System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
-            }
-        }
-
-
-        BodyJSON body = new BodyJSON();
-        body.put("user", user);
-        body.put("workspaceId", workspaceId);
-
-        Response response = sendRequest(body, "addusertoworkspace");
-        if (response != null) {
-            try {
-                BodyJSON responseBody = response.getBodyJSON();
-                String message = responseBody.get("message");
-                if (message == null) message = "";
-
-                System.out.println("Resposta: " + response.getStatus() + " # " + message);
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
             }
@@ -787,11 +785,12 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static StatusCode sendKeyToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static String sendKeyToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         File file = new File(filePath);
         if (!file.exists()) {
             //System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
-            return StatusCode.NOT_FOUND;
+//            return StatusCode.NOT_FOUND;
+            return null;
         }
 
         // Step 1: Initialize the upload
@@ -819,7 +818,8 @@ public class NetworkManager {
 
         if (initResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao inicializar upload");
-            return initResponse.getStatus();
+//            return initResponse.getStatus();
+            return null;
         }
 
         BodyJSON initResponseBody = initResponse.getBodyJSON();
@@ -857,7 +857,8 @@ public class NetworkManager {
                 Response chunkResponse = Response.fromStream(in);
                 if (chunkResponse.getStatus() != StatusCode.OK) {
                     System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
-                    return chunkResponse.getStatus();
+//                    return chunkResponse.getStatus();
+                    return null;
                 }
 
                 chunkId++;
@@ -881,10 +882,13 @@ public class NetworkManager {
 
         if (completeResponse.getStatus() != StatusCode.OK) {
             System.err.println("[CLIENT] Erro ao finalizar upload");
-            return completeResponse.getStatus();
+//            return completeResponse.getStatus();
+            return null;
         }
 
         //System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
-        return completeResponse.getStatus();
+//        return completeResponse.getStatus();
+
+        return fileId;
     }
 }
