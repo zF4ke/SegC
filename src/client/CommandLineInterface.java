@@ -77,7 +77,7 @@ public class CommandLineInterface {
                             String workspace = commandParts[2];
                             if(!isValidUser(userId) || !isValidWorkspace(workspace)) {break;}
 
-                            networkManager.addUserToWorkspace(userId, workspace);
+                            networkManager.addUserToWorkspace(userId, workspace, authenticatedUserId);
                         } else {
                             System.err.println("[CLIENT] Uso incorreto do comando: ADD");
                         }

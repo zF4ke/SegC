@@ -1,22 +1,17 @@
 package server.routes;
 
+import server.WorkspaceManager;
+import server.models.*;
+import server.utils.NetworkUtils;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import server.WorkspaceManager;
-import server.models.BodyFormat;
-import server.models.BodyJSON;
-import server.models.BodyRaw;
-import server.models.Request;
-import server.models.Response;
-import server.models.StatusCode;
-import server.models.User;
-import server.utils.NetworkUtils;
 
-public class DownloadFileFromWorkspaceHandler implements RouteHandler{
+public class DownloadKeyFromWorkspaceHandler implements RouteHandler{
     private static final Map<String, FileDownloadSession> downloadSessions = new HashMap<>();
     private static final int CHUNK_SIZE = 1024 * 64; //64 KB
 
@@ -80,7 +75,7 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
         BodyJSON body = request.getBodyJSON();
 
         String workspaceId = body.get("workspaceId");
-        String filename = body.get("fileName");
+        String filename = workspaceId + ".key." + user.getUserId();
 
         if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
             return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);

@@ -4,10 +4,15 @@ import server.models.*;
 import server.utils.NetworkUtils;
 //import shared.FileSecurityUtils;
 
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.Base64;
 
 
 public class NetworkManager {
@@ -55,7 +60,89 @@ public class NetworkManager {
      * @param user the user
      * @param workspaceId the workspace ID
      */
-    public void addUserToWorkspace(String user, String workspaceId) {
+    public void addUserToWorkspace(String user, String workspaceId, String ownerId) {
+        // get key from the server
+        BodyJSON bodyKey = new BodyJSON();
+        bodyKey.put("action", "init");
+        bodyKey.put("workspaceId", workspaceId);
+        Response responseKey = sendRequest(bodyKey, "downloadkeyfromworkspace");
+        if (responseKey != null) {
+            try {
+                StatusCode status = responseKey.getStatus();
+                if (status != StatusCode.OK) {
+                    System.out.println("Resposta: " + responseKey.getStatus());
+                    return;
+                }
+
+                String fileName = workspaceId + ".key." + user;
+                StatusCode statusKey = receiveKeyFromServer(fileName, workspaceId, in, out);
+                if (statusKey != StatusCode.OK) {
+                    System.out.println("Resposta: " + statusKey);
+                    return;
+                }
+
+                File file = new File(fileName);
+
+                // do magic to decrypt the file and blabla
+//                When im adding a user to the workspace, i need to download the workspace key, decrypt it with the owner private key (on the client) and then encrypt it with the new user's public key. Then i send the key back to the server and it saves it as <ws>.key.<newuserid>
+//                Just like in the Upload/Download file To/From workspace handlers, I need actions and routes to do that, so please ajust the AddUserToWorkspaceHandler to do all that.
+
+                // decrypt the file with the owner private key
+                // encrypt the file with the new user public key
+                // save the file as <ws>.key.<newuserid>
+                //System.out.println("Resposta: " + statusKey);
+                PrivateKey ownerPrivateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(ownerId);
+                String keyData = Files.readString(file.toPath());
+                String[] keyParts = keyData.split(":");
+                byte[] wrappedAesKey = Base64.getDecoder().decode(keyParts[0]);
+                byte[] salt = Base64.getDecoder().decode(keyParts[1]);
+
+                // decrypt the key with the owner private key
+                Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+                rsaCipher.init(Cipher.DECRYPT_MODE, ownerPrivateKey);
+
+                byte[] aesKeyBytes = rsaCipher.doFinal(wrappedAesKey);
+
+                SecretKey aesKey = new SecretKeySpec(aesKeyBytes, "AES");
+
+                // encrypt the key with the new user public key
+                // get the new user public key
+                PublicKey newUserPublicKey = ClientSecurityUtils.getUserPublicKeyFromKeyStore(user);
+
+                // encrypt the key with the new user public key
+                Cipher rsaCipher2 = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+                rsaCipher2.init(Cipher.ENCRYPT_MODE, newUserPublicKey);
+                byte[] wrappedAesKey2 = rsaCipher2.doFinal(aesKey.getEncoded());
+
+                // create the new key file
+                String newKeyData = Base64.getEncoder().encodeToString(wrappedAesKey2) + ":" + Base64.getEncoder().encodeToString(salt);
+
+                // save the new key file
+                File newKeyFile = new File(workspaceId + ".key." + user);
+                try (FileOutputStream fos = new FileOutputStream(newKeyFile)) {
+                    fos.write(newKeyData.getBytes());
+                }
+
+                // send key to the server
+                File keyFile = new File(fileName);
+                StatusCode fileStatus = sendKeyToServer(keyFile.getPath(), workspaceId, in, out);
+
+                if (fileStatus != StatusCode.OK) {
+                    System.out.println("Resposta: " + fileStatus);
+                    return;
+                }
+
+                // delete the file
+                Files.deleteIfExists(Paths.get(fileName));
+
+                // delete the new key file
+                Files.deleteIfExists(Paths.get(newKeyFile.getPath()));
+            } catch (Exception e) {
+                System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
+            }
+        }
+
+
         BodyJSON body = new BodyJSON();
         body.put("user", user);
         body.put("workspaceId", workspaceId);
@@ -102,7 +189,7 @@ public class NetworkManager {
 
                 PrivateKey privateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(userId);
                 File signatureFile = ClientSecurityUtils.createSignedFile(file, privateKey);
-                StatusCode fileStatus = sendFileToServer(file,signatureFile.getPath(), workspaceId, in, out);
+                StatusCode fileStatus = sendFileToServerWithSignature(file,signatureFile.getPath(), workspaceId, in, out);
                 //new code starts 
                 
                 //new code endds
@@ -143,7 +230,7 @@ public class NetworkManager {
         boolean first = true;
         for (String file : files) {
             try {
-                StatusCode status = receiveFileFromServer(file, workspaceId, in, out);
+                StatusCode status = receiveFileFromServerWithSignature(file, workspaceId, in, out);
                 if (!first) {
                     System.out.println("\t  " + file + ": " + status);
                 } else {
@@ -282,7 +369,7 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static StatusCode receiveFileFromServer(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode receiveFileFromServerWithSignature(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         // Step 1: Initialize the download
         BodyJSON initBody = new BodyJSON();
         initBody.put("action", "init");
@@ -389,7 +476,7 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static StatusCode sendFileToServer(String filePath,String signatureFilePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode sendFileToServerWithSignature(String filePath,String signatureFilePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         File file = new File(filePath);
         File signatureFile = new File(signatureFilePath);
         if (!file.exists()) {
@@ -584,5 +671,220 @@ public class NetworkManager {
 
         //System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
         return completeSignatureResponse.getStatus();
+    }
+
+    /**
+     * Receives a file from the server.
+     *
+     * @param fileName the file name
+     * @param workspaceId the workspace ID
+     * @param in the input stream
+     * @param out the output stream
+     */
+    private static StatusCode receiveKeyFromServer(String fileName, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+        // Step 1: Initialize the download
+        BodyJSON initBody = new BodyJSON();
+        initBody.put("action", "init");
+        initBody.put("workspaceId", workspaceId);
+
+        Request initRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "downloadkeyfromworkspace",
+                initBody
+        );
+
+        out.write(initRequest.toByteArray());
+        Response initResponse = Response.fromStream(in);
+        //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+
+        if (initResponse.getStatus() != StatusCode.OK) {
+            //System.err.println("[CLIENT] Erro ao inicializar download");
+            return StatusCode.NOT_FOUND;
+        }
+
+        BodyJSON initResponseBody = initResponse.getBodyJSON();
+        int totalChunks = Integer.parseInt(initResponseBody.get("chunks"));
+        int fileSize = Integer.parseInt(initResponseBody.get("size"));
+        String fileId = initResponseBody.get("fileId");
+
+        // Step 2: Receive file chunks
+        try (FileOutputStream fileOut = new FileOutputStream(fileName)) {
+            for (int chunkId = 0; chunkId < totalChunks; chunkId++) {
+                BodyJSON chunkBody = new BodyJSON();
+                chunkBody.put("action", "chunk");
+                chunkBody.put("chunkId", String.valueOf(chunkId));
+                chunkBody.put("fileId", fileId);
+
+                Request chunkRequest = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.JSON,
+                        "downloadkeyfromworkspace",
+                        chunkBody
+                );
+
+                out.write(chunkRequest.toByteArray());
+                Response chunkResponse = Response.fromStream(in);
+                if (!String.valueOf(chunkId).equals(chunkResponse.getHeader("CHUNK-ID"))) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(fileName));
+                    return chunkResponse.getStatus();
+                }
+
+                if (!fileId.equals(chunkResponse.getHeader("FILE-ID"))) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(fileName));
+                    return chunkResponse.getStatus();
+                }
+
+                //System.out.println("[CLIENT] Resposta de chunk " + chunkId + ": " + chunkResponse);
+
+                if (chunkResponse.getStatus() != StatusCode.OK) {
+                    System.err.println("[CLIENT] Erro ao receber chunk " + chunkId);
+                    Files.deleteIfExists(Paths.get(fileName));
+                    return chunkResponse.getStatus();
+                }
+
+                BodyRaw chunkData = chunkResponse.getBodyRaw();
+                fileOut.write(chunkData.toBytes());
+            }
+        } catch (IOException e) {
+            System.err.println("[CLIENT] Erro ao receber ficheiro: " + e.getMessage());
+            Files.deleteIfExists(Paths.get(fileName));
+            return StatusCode.NOK;
+        }
+
+        // Step 3: Complete the download
+        BodyJSON completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        Request completeRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "downloadkeyfromworkspace",
+                completeBody
+        );
+
+        out.write(completeRequest.toByteArray());
+        Response completeResponse = Response.fromStream(in);
+
+        if (completeResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar download!");
+            Files.deleteIfExists(Paths.get(fileName));
+
+            return completeResponse.getStatus();
+        }
+
+        //System.out.println("[CLIENT] Ficheiro recebido com sucesso!");
+        return completeResponse.getStatus();
+    }
+
+    /**
+     * Sends a file to the server.
+     *
+     * @param filePath the file path
+     * @param in the input stream
+     * @param out the output stream
+     */
+    private static StatusCode sendKeyToServer(String filePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+        File file = new File(filePath);
+        if (!file.exists()) {
+            //System.err.println("[CLIENT] Ficheiro não encontrado: " + filePath);
+            return StatusCode.NOT_FOUND;
+        }
+
+        // Step 1: Initialize the upload
+        //System.out.println("[CLIENT] Iniciando envio do ficheiro: " + file.getName());
+
+        BodyJSON initBody = new BodyJSON();
+        initBody.put("action", "init");
+        initBody.put("workspaceId", workspaceId);
+        initBody.put("size", String.valueOf(file.length()));
+
+        int chunkSize = 1024 * 64; // 64KB chunks
+        int totalChunks = (int) Math.ceil((double) file.length() / chunkSize);
+        initBody.put("chunks", String.valueOf(totalChunks));
+
+        Request initRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "uploadkeytoworkspace",
+                initBody
+        );
+
+        out.write(initRequest.toByteArray());
+        Response initResponse = Response.fromStream(in);
+        //System.out.println("[CLIENT] Resposta de inicialização: " + initResponse);
+
+        if (initResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao inicializar upload");
+            return initResponse.getStatus();
+        }
+
+        BodyJSON initResponseBody = initResponse.getBodyJSON();
+        String fileId = initResponseBody.get("fileId");
+
+        // Step 2: Send file chunks
+        try (FileInputStream fileIn = new FileInputStream(file)) {
+            byte[] buffer = new byte[chunkSize];
+            int chunkId = 0;
+            int bytesRead;
+
+            while ((bytesRead = fileIn.read(buffer)) > 0) {
+                byte[] chunkData;
+                if (bytesRead < buffer.length) {
+                    chunkData = new byte[bytesRead];
+                    System.arraycopy(buffer, 0, chunkData, 0, bytesRead);
+                } else {
+                    chunkData = buffer;
+                }
+
+                BodyRaw chunkBody = new BodyRaw(chunkData);
+                Request chunkRequest = new Request(
+                        NetworkUtils.randomUUID(),
+                        BodyFormat.RAW,
+                        "uploadkeytoworkspace",
+                        chunkBody
+                );
+                chunkRequest.addHeader("FILE-ID", fileId);
+                chunkRequest.addHeader("CHUNK-ID", String.valueOf(chunkId));
+                chunkRequest.addHeader("TYPE", "CHUNK");
+
+                //System.out.println("[CLIENT] Enviando chunk " + (chunkId + 1) + "/" + (totalChunks));
+                out.write(chunkRequest.toByteArray());
+
+                Response chunkResponse = Response.fromStream(in);
+                if (chunkResponse.getStatus() != StatusCode.OK) {
+                    System.err.println("[CLIENT] Erro ao enviar chunk " + chunkId);
+                    return chunkResponse.getStatus();
+                }
+
+                chunkId++;
+            }
+        }
+
+        // Step 3: Complete the upload
+        BodyJSON completeBody = new BodyJSON();
+        completeBody.put("action", "complete");
+        completeBody.put("fileId", fileId);
+
+        Request completeRequest = new Request(
+                NetworkUtils.randomUUID(),
+                BodyFormat.JSON,
+                "uploadkeytoworkspace",
+                completeBody
+        );
+
+        out.write(completeRequest.toByteArray());
+        Response completeResponse = Response.fromStream(in);
+
+        if (completeResponse.getStatus() != StatusCode.OK) {
+            System.err.println("[CLIENT] Erro ao finalizar upload");
+            return completeResponse.getStatus();
+        }
+
+        //System.out.println("[CLIENT] Ficheiro enviado com sucesso!");
+        return completeResponse.getStatus();
     }
 }
