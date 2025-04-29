@@ -386,7 +386,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
                 return NetworkUtils.createErrorResponse(request, "Assinatura inválida");
             }
 
-            // move file to workspace directory
+            // move file and signature to workspace directory
             File file = new File(session.tempFilePath);
             File signatureFile = new File(signatureSession.tempFilePath);
             String signatureFileName = signatureSession.fileName;
@@ -400,12 +400,18 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             if (!success) {
                 return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro para o workspace");
             }
+            
+            boolean successSignature = workspaceManager.uploadFile(user.getUserId(), session.workspaceId, file, signatureFileName);
+            if (!successSignature) {
+                return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro de assinatura para o workspace");
+            }
 
             uploadSessions.remove(fileId);
             uploadSessions.remove(signatureFileId);
 
             // remove temp file just in case
             Files.deleteIfExists(file.toPath());
+            Files.deleteIfExists(signatureFile.toPath());
 
             return new Response(request.getUUID(), StatusCode.OK, BodyFormat.JSON, responseBody);
         } catch (Exception e) {

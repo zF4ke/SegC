@@ -103,7 +103,7 @@ public class ClientSecurityUtils {
      * @return the path to the signed file
      */
     //TODO check if the file is created in the same directory as the original file
-    public static File createSignedFile(String filePath, PrivateKey privateKey) {
+    public static File createSignedFile(String filePath, String userID,PrivateKey privateKey) {
         try {
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initSign(privateKey);
@@ -119,7 +119,7 @@ public class ClientSecurityUtils {
             // String base64EncodedBytes = Base64.getEncoder().encodeToString(signedBytes);
             // System.out.println("Base64 encoded signature length: " + base64EncodedBytes.length());
 
-            Path signaturePath = Paths.get(filePath + ".signedFile");
+            Path signaturePath = Paths.get(filePath + ".signed." + userID);
 
             //TODO check where the file is created
             Files.createFile(signaturePath);

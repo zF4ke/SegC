@@ -209,6 +209,10 @@ public class WorkspaceManager {
         return fsm.isFileInWorkspace(fileName, workspaceId);
     }
 
+    public boolean  isSignatureFileInWorkspace(String signatureFileName, String workspaceId) {
+        return fsm.isSignatureFileInWorkspace(signatureFileName, workspaceId);
+    }
+
     /**
      * Get the file from the workspace
      *

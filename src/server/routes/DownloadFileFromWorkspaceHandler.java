@@ -36,6 +36,12 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
                         return handleChunkData(request);
                     case "complete":
                         return handleCompletion(request);
+                    case "signature_init":
+                        return handleSignatureInitialization(request);
+                    case "signature_chunk":
+                        return handleSignatureChunk(request);
+                    case "signature_complete":
+                        return handleSignatureCompletion(request);
 
                     default:
                         return NetworkUtils.createErrorResponse(request, "Ação inválida");
@@ -47,6 +53,11 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
         }
         
     }
+
+  
+
+
+
 
     /**
      * Handles the permission verification for a file upload.
@@ -216,6 +227,68 @@ public class DownloadFileFromWorkspaceHandler implements RouteHandler{
                 BodyFormat.JSON,
                 completeBody);
     }
+
+    private Response handleSignatureInitialization(Request request) {
+        WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
+        User user = request.getAuthenticatedUser();
+        BodyJSON body = request.getBodyJSON();
+
+        String workspaceId = body.get("workspaceId");
+        String filename = body.get("fileName");
+
+        if (user == null || !workspaceManager.isUserInWorkspace(user.getUserId(), workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, StatusCode.NOPERM);
+        }
+
+        if (!workspaceManager.isFileInWorkspace(filename, workspaceId)) {
+            return NetworkUtils.createErrorResponse(request, StatusCode.NOK);
+        }
+
+        File file = workspaceManager.getFile(filename, workspaceId);
+        String fileId = UUID.randomUUID().toString();
+ 
+        BodyJSON initBody = new BodyJSON();
+        initBody.put("action", "init");
+        initBody.put("fileId", fileId);
+        initBody.put("size", String.valueOf(file.length()));
+
+        int chunkSize = 1024 * 64; // 64KB chunks
+        int totalChunks = (int) Math.ceil((double) file.length() / chunkSize);
+        initBody.put("chunks", String.valueOf(totalChunks));
+
+        FileDownloadSession session = new FileDownloadSession(fileId, filename, file.length(), file.getPath(), user.getUserId(), workspaceId);
+        downloadSessions.put(fileId, session);
+
+        return new Response(
+            request.getUUID(),
+            StatusCode.OK,
+            BodyFormat.JSON,
+            initBody);
+    }
+
+
+    /**
+     * Handles the chunk data for a signature file upload.
+     *
+     * @param request the request
+     * @return the response
+     */
+    private Response handleSignatureChunk(Request request) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'handleSignatureChunk'");
+    }
+
+    /**
+     * Handles the completion of a signature file upload.
+     *
+     * @param request the request
+     * @return the response
+     */
+    private Response handleSignatureCompletion(Request request) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'handleSignatureCompletion'");
+    }
+
 
 
 

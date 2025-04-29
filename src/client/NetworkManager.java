@@ -188,8 +188,11 @@ public class NetworkManager {
             try {
 
                 PrivateKey privateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(userId);
-                File signatureFile = ClientSecurityUtils.createSignedFile(file, privateKey);
+                File signatureFile = ClientSecurityUtils.createSignedFile(file,userId ,privateKey);
                 StatusCode fileStatus = sendFileToServerWithSignature(file,signatureFile.getPath(), workspaceId, in, out);
+                if (!signatureFile.delete()) {
+                    System.err.println("[CLIENT] Erro ao apagar o ficheiro de assinatura: " + signatureFile.getPath());
+                }
                 //new code starts 
                 
                 //new code endds
