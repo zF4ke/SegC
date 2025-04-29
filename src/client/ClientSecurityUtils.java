@@ -2,28 +2,17 @@ package client;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
-import java.security.SignatureException;
-import java.util.Arrays;
-import java.util.Base64;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
-import javax.crypto.NoSuchPaddingException;
 
 public class ClientSecurityUtils {
     
@@ -58,14 +47,14 @@ public class ClientSecurityUtils {
             System.out.println("Signature length: " + signedBytes.length);
 
 
-            String base64EncodedBytes = Base64.getEncoder().encodeToString(signedBytes);
-            System.out.println("Base64 encoded signature length: " + base64EncodedBytes.length());
+            // String base64EncodedBytes = Base64.getEncoder().encodeToString(signedBytes);
+            // System.out.println("Base64 encoded signature length: " + base64EncodedBytes.length());
 
             Path signaturePath = Paths.get(filePath + ".signedFile");
 
             //TODO check where the file is created
             Files.createFile(signaturePath);
-            Files.write(signaturePath, base64EncodedBytes.getBytes());
+            Files.write(signaturePath, signedBytes);
             return signaturePath.toFile();
 
         
@@ -102,18 +91,21 @@ public class ClientSecurityUtils {
             byte[] dataBytes = Files.readAllBytes(Paths.get(filePath));
             System.out.println("File size: " + dataBytes.length);
     
-            // Read the Base64 encoded signature file
-            String base64EncodedSignature = new String(Files.readAllBytes(Paths.get(signatureFilePath)));
-            System.out.println("Base64 Encoded Signature Length: " + base64EncodedSignature.length());
+            // // Read the Base64 encoded signature file
+            // String base64EncodedSignature = new String(Files.readAllBytes(Paths.get(signatureFilePath)));
+            // System.out.println("Base64 Encoded Signature Length: " + base64EncodedSignature.length());
     
-            // Decode the Base64 encoded signature
-            byte[] decodedSignature = Base64.getDecoder().decode(base64EncodedSignature);
-            System.out.println("Decoded signature length: " + decodedSignature.length);
+            // // Decode the Base64 encoded signature
+            // byte[] decodedSignature = Base64.getDecoder().decode(base64EncodedSignature);
+            // System.out.println("Decoded signature length: " + decodedSignature.length);
     
-            // Extract only the first 256 bytes (the expected size for SHA256 with RSA signature)
-            byte[] signatureBytes = Arrays.copyOfRange(decodedSignature, 0, 256);
-            System.out.println("Extracted signature length: " + signatureBytes.length);
-    
+            // // Extract only the first 256 bytes (the expected size for SHA256 with RSA signature)
+            // byte[] signatureBytes = Arrays.copyOfRange(decodedSignature, 0, 256);
+            // System.out.println("Extracted signature length: " + signatureBytes.length);
+            
+            // Read the signature file
+            byte[] signatureBytes = Files.readAllBytes(Paths.get(signatureFilePath));
+
             // Verify the signature
             signature.update(dataBytes);
             return signature.verify(signatureBytes);
