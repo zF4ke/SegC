@@ -13,7 +13,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.security.cert.Certificate;
 import java.util.Base64;
 
 /*
@@ -70,13 +72,13 @@ import java.util.Base64;
  */
 
 public class ClientSecurityUtils {
-    private static final String KEYSTORE_PATH = "client_keys/";
+    private static final String KEYS_PATH = "client_keys/";
     private static final String DEFAULT_PASSWORD = "123456";
     private static final String ALGORITHM = "SHA256withRSA";
 
     public static PublicKey getUserPublicKeyFromKeyStore(String alias) {
         try {
-            String keyStorePath = KEYSTORE_PATH + alias + "/" + alias  + ".keystore";
+            String keyStorePath = KEYS_PATH + alias + "/" + alias  + ".keystore";
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new FileInputStream(keyStorePath), DEFAULT_PASSWORD.toCharArray());
@@ -89,13 +91,26 @@ public class ClientSecurityUtils {
 
     public static PrivateKey getUserPrivateKeyFromKeyStore(String alias) {
         try {
-            String keyStorePath = KEYSTORE_PATH + alias + "/" + alias  + ".keystore";
+            String keyStorePath = KEYS_PATH + alias + "/" + alias  + ".keystore";
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new FileInputStream(keyStorePath), DEFAULT_PASSWORD.toCharArray());
             return (PrivateKey) keyStore.getKey(alias, DEFAULT_PASSWORD.toCharArray());
         } catch (Exception e) {
             System.err.println("[CLIENT SECURITY UTILS] Erro ao obter a chave privada do keystore: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public static Certificate getUserCertificateFromTrustStore(String userId, String alias) {
+        try {
+            String trustStorePath = KEYS_PATH + userId + "/" + userId  + ".truststore";
+
+            KeyStore trustStore = KeyStore.getInstance("PKCS12");
+            trustStore.load(new FileInputStream(trustStorePath), DEFAULT_PASSWORD.toCharArray());
+            return trustStore.getCertificate(alias);
+        } catch (Exception e) {
+            System.err.println("[CLIENT SECURITY UTILS] Erro ao obter o certificado do truststore: " + e.getMessage());
             return null;
         }
     }
@@ -108,36 +123,35 @@ public class ClientSecurityUtils {
      * @return the path to the signed file
      */
     //TODO check if the file is created in the same directory as the original file
-    public static File createSignedFile(String filePath, String userID,PrivateKey privateKey) {
+    public static File createSignedFile(String filePath, String userID, PrivateKey privateKey) {
         try {
+            File dataFile = new File(filePath);
+            if (!dataFile.exists()) {
+                System.err.println("[CLIENT] Arquivo de dados não encontrado: " + filePath);
+                return null;
+            }
+
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initSign(privateKey);
 
+            // Read and hash the data file
             byte[] fileBytes = Files.readAllBytes(Paths.get(filePath));
             signature.update(fileBytes);
 
+            // Generate the signature
             byte[] signedBytes = signature.sign();
 
-            System.out.println("Signature length: " + signedBytes.length);
-
-
-            // String base64EncodedBytes = Base64.getEncoder().encodeToString(signedBytes);
-            // System.out.println("Base64 encoded signature length: " + base64EncodedBytes.length());
-
+            // Create the signature file
             Path signaturePath = Paths.get(filePath + ".signed." + userID);
-
-            //TODO check where the file is created
-            Files.createFile(signaturePath);
             Files.write(signaturePath, signedBytes);
+
             return signaturePath.toFile();
 
-
         } catch (Exception e) {
-            System.err.println("[CLIENT] Error while signing the file: " + e.getMessage());
-            System.err.println("[CLIENT] System compromised! Shutting down...");
-            System.exit(1);
+            System.err.println("[CLIENT] Erro ao assinar o arquivo: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
 
@@ -163,7 +177,7 @@ public class ClientSecurityUtils {
 
             // Read the data file
             byte[] dataBytes = Files.readAllBytes(Paths.get(filePath));
-            System.out.println("File size: " + dataBytes.length);
+            //System.out.println("File size: " + dataBytes.length);
 
             // // Read the Base64 encoded signature file
             // String base64EncodedSignature = new String(Files.readAllBytes(Paths.get(signatureFilePath)));
@@ -205,14 +219,16 @@ public class ClientSecurityUtils {
     public static String encryptFile(String filePath, File keyFile, String userId) {
         try {
             // Step 1: Read and parse key file: expected format <salt>:<wrappedKey>
-            String keyData = Files.readString(keyFile.toPath());
+            // read and trim key file to remove any trailing whitespace or newline
+            String keyData = new String(Files.readAllBytes(keyFile.toPath()), StandardCharsets.UTF_8).trim();
             String[] parts = keyData.split(":", 2);
             if (parts.length != 2) {
                 throw new IllegalArgumentException("Invalid key file format");
             }
 
-            byte[] salt = Base64.getDecoder().decode(parts[0]);
-            byte[] wrappedAesKey = Base64.getDecoder().decode(parts[1]);
+            // decode wrapped AES key and salt: <wrappedKey>:<salt>
+            byte[] wrappedAesKey = Base64.getDecoder().decode(parts[0]);
+            byte[] salt = Base64.getDecoder().decode(parts[1]);
 
             // Step 2: Load private RSA key of the owner
             PrivateKey ownerPrivateKey = getUserPrivateKeyFromKeyStore(userId);
@@ -232,10 +248,14 @@ public class ClientSecurityUtils {
             aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
 
             // Step 5: Create output stream & write IV + salt first
-            String encryptedPath = filePath + ".enc";
+            // move original file to backup
+            String backupPath = filePath + ".bak";
+            Files.move(Paths.get(filePath), Paths.get(backupPath), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            //String encryptedPath = filePath + ".enc";
+            String encryptedPath = filePath;
             try (FileOutputStream fos = new FileOutputStream(encryptedPath);
                  CipherOutputStream cos = new CipherOutputStream(fos, aesCipher);
-                 FileInputStream fis = new FileInputStream(filePath)) {
+                 FileInputStream fis = new FileInputStream(backupPath)) {
 
                 fos.write(iv);    // Write IV first
                 fos.write(salt);  // Then write salt
@@ -247,7 +267,28 @@ public class ClientSecurityUtils {
                 }
             }
 
-            System.out.println("[CLIENT] File encrypted with AES and saved to: " + encryptedPath);
+            // remove the backup file
+            Files.delete(Paths.get(backupPath));
+
+            // print encrypted file content
+//            byte[] encryptedFileBytes = Files.readAllBytes(Paths.get(encryptedPath));
+//            String base64EncodedBytes = Base64.getEncoder().encodeToString(encryptedFileBytes);
+//            System.out.println("Base64 encoded encrypted file length: " + base64EncodedBytes.length());
+//            System.out.println("Encrypted file size: " + encryptedFileBytes.length);
+//
+//            // test: decrypt the file using decryptFile method
+//             String decryptedPath = decryptFile(encryptedPath, keyFile, userId);
+//            System.out.println("[CLIENT] File decrypted successfully to: " + decryptedPath);
+//            // test: verify the signature of the decrypted file
+//            boolean isVerified = verifySignedFile(decryptedPath, decryptedPath + ".signed." + userId, getUserPublicKeyFromKeyStore(userId));
+//            System.out.println("[CLIENT] Signature verification result: " + isVerified);
+//            // print the decrypted file content
+//            byte[] decryptedFileBytes = Files.readAllBytes(Paths.get(decryptedPath));
+//            String base64EncodedDecryptedBytes = Base64.getEncoder().encodeToString(decryptedFileBytes);
+//            System.out.println("Base64 encoded decrypted file length: " + base64EncodedDecryptedBytes.length());
+//            System.out.println("Decrypted file size: " + decryptedFileBytes.length);
+//
+//            System.out.println("[CLIENT] File encrypted with AES and saved to: " + encryptedPath);
             return encryptedPath;
 
         } catch (Exception e) {
@@ -268,15 +309,16 @@ public class ClientSecurityUtils {
      */
     public static String decryptFile(String encryptedFilePath, File keyFile, String userId) {
         try {
-            // Step 1: Read and parse key file (format: <salt>:<wrappedKey>)
-            String keyData = Files.readString(keyFile.toPath());
+            // Step 1: Read and parse key file (format: <wrappedKey>:<salt>)
+            String keyData = new String(Files.readAllBytes(keyFile.toPath()), StandardCharsets.UTF_8).trim();
             String[] parts = keyData.split(":", 2);
             if (parts.length != 2) {
                 throw new IllegalArgumentException("Invalid key file format");
             }
 
-            byte[] salt = Base64.getDecoder().decode(parts[0]);
-            byte[] wrappedAesKey = Base64.getDecoder().decode(parts[1]);
+            // decode wrapped AES key and salt: <wrappedKey>:<salt>
+            byte[] wrappedAesKey = Base64.getDecoder().decode(parts[0]);
+            byte[] salt = Base64.getDecoder().decode(parts[1]);
 
             // Step 2: Load user's private RSA key
             PrivateKey privateKey = getUserPrivateKeyFromKeyStore(userId);
@@ -304,7 +346,8 @@ public class ClientSecurityUtils {
             aesCipher.init(Cipher.DECRYPT_MODE, aesKey, ivSpec);
 
             // Step 6: Stream decryption to output file
-            String outputPath = encryptedFilePath.replaceFirst("\\.enc$", "");
+            // move original file to backup
+            String outputPath = encryptedFilePath + ".dec";
             try (CipherInputStream cis = new CipherInputStream(fis, aesCipher);
                  FileOutputStream fos = new FileOutputStream(outputPath)) {
 
@@ -315,8 +358,11 @@ public class ClientSecurityUtils {
                 }
             }
 
-            System.out.println("[CLIENT] File decrypted successfully to: " + outputPath);
-            return outputPath;
+            // delete the original encrypted file and replace it with decrypted content
+            Files.delete(Paths.get(encryptedFilePath));
+            Files.move(Paths.get(outputPath), Paths.get(encryptedFilePath), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            // return the path to the decrypted file (now at the original encryptedFilePath)
+            return encryptedFilePath;
 
         } catch (Exception e) {
             System.err.println("[CLIENT] Error while decrypting the file: " + e.getMessage());

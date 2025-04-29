@@ -503,7 +503,7 @@ public class NetworkManager {
         
         // Step 4: Init the signature file
         initBody = new BodyJSON();
-        initBody.put("action", "init_signature");
+        initBody.put("action", "signature_init");
         initBody.put("fileName", fileName);
         initBody.put("workspaceId", workspaceId);
 
@@ -612,8 +612,7 @@ public class NetworkManager {
         }
 
 
-        String userId = signatureFileName.split("\\.")[2];
-        TrustStoreManager trustStoreManager = new TrustStoreManager(user);
+        String userId = signatureFileName.split("\\.")[3];
         PublicKey publicKey = ClientSecurityUtils.getUserPublicKeyFromKeyStore(userId);
 
 
@@ -627,7 +626,24 @@ public class NetworkManager {
 
         }
 
-        
+        // remove the signature file
+        if (!new File(signatureFileName).delete()) {
+            System.err.println("[CLIENT] Erro ao apagar o ficheiro de assinatura: " + signatureFileName);
+        }
+
+        String fileKeyName = workspaceId + ".key." + user;
+        StatusCode statusKey = receiveKeyFromServer(fileKeyName, workspaceId, in, out);
+        if (statusKey != StatusCode.OK) {
+            System.out.println("Resposta: " + statusKey);
+            return statusKey;
+        }
+
+        ClientSecurityUtils.decryptFile(fileName, new File(fileKeyName), userId);
+
+        // remove the key file
+        if (!new File(fileKeyName).delete()) {
+            System.err.println("[CLIENT] Erro ao apagar o ficheiro de chave: " + fileKeyName);
+        }
 
         //System.out.println("[CLIENT] Ficheiro recebido com sucesso!");
         return completeResponse.getStatus();

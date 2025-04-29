@@ -1,5 +1,6 @@
 package server.routes;
 
+import client.ClientSecurityUtils;
 import server.WorkspaceManager;
 import server.models.*;
 import server.utils.InputUtils;
@@ -13,17 +14,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.PublicKey;
+import java.security.cert.Certificate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import client.TrustStoreManager;
 import server.utils.ServerSecurityUtils;
 
 public class UploadFileToWorkspaceHandler implements RouteHandler {
     private static final String TEMP_DIR = "data/temp_files";
-    private final String KEYSTORE_PATH = "server_keys/server.truststore";
     private static final Map<String, FileUploadSession> uploadSessions = new HashMap<>();
 
     public UploadFileToWorkspaceHandler() {
@@ -372,8 +372,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
             session.isComplete = true;
             signatureSession.isComplete = true;
 
-            TrustStoreManager tsm = new TrustStoreManager(KEYSTORE_PATH);
-            PublicKey publicKey = tsm.getCertificate(user.getUserId()).getPublicKey();
+            PublicKey publicKey = ServerSecurityUtils.getUserPublicKeyFromTruststore(user.getUserId());
             if (publicKey == null) {
                 return NetworkUtils.createErrorResponse(request, "Chave pública não encontrada");
             }
@@ -399,7 +398,7 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
                 return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro para o workspace");
             }
             
-            boolean successSignature = workspaceManager.uploadFile(user.getUserId(), session.workspaceId, file, signatureFileName);
+            boolean successSignature = workspaceManager.uploadFile(user.getUserId(), session.workspaceId, signatureFile, signatureFileName);
             if (!successSignature) {
                 return NetworkUtils.createErrorResponse(request, "Erro ao mover ficheiro de assinatura para o workspace");
             }

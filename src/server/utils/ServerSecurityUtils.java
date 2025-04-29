@@ -4,6 +4,7 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.io.File;
 import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -151,20 +152,39 @@ public class ServerSecurityUtils {
     //TODO check if the file is created in the same directory as the original file
     public static boolean verifySignedFile(String filePath, String signatureFilePath, PublicKey publicKey) {
         try {
+            File signatureFile = new File(signatureFilePath);
+            if (!signatureFile.exists()) {
+                System.err.println("[SERVER] Arquivo de assinatura não encontrado: " + signatureFilePath);
+                return false;
+            }
+
+            File dataFile = new File(filePath);
+            if (!dataFile.exists()) {
+                System.err.println("[SERVER] Arquivo de dados não encontrado: " + filePath);
+                return false;
+            }
+
             Signature signature = Signature.getInstance(ALGORITHM);
             signature.initVerify(publicKey);
 
+            // Read and hash the data file
             byte[] dataBytes = Files.readAllBytes(Paths.get(filePath));
-            byte[] signedBytes = Files.readAllBytes(Paths.get(signatureFilePath));
             signature.update(dataBytes);
 
-            return signature.verify(signedBytes);
+            // Read and verify the signature
+            byte[] signatureBytes = Files.readAllBytes(Paths.get(signatureFilePath));
+            boolean isValid = signature.verify(signatureBytes);
+            
+            if (!isValid) {
+                System.err.println("[SERVER] Assinatura inválida para o arquivo: " + filePath);
+            }
+            
+            return isValid;
 
         } catch (Exception e) {
-            System.err.println("[CLIENT] Error while verifying the signed file: " + e.getMessage());
-            System.err.println("[CLIENT] System compromised! Shutting down...");
-            System.exit(1);
+            System.err.println("[SERVER] Erro ao verificar assinatura do arquivo: " + e.getMessage());
+            e.printStackTrace();
+            return false;
         }
-        return false;
     }
 }
