@@ -71,7 +71,7 @@ public class ClientSecurityUtils {
 
     public static PublicKey getUserPublicKeyFromKeyStore(String alias) {
         try {
-            String keyStorePath = KEYSTORE_PATH + alias + ".keystore";
+            String keyStorePath = KEYSTORE_PATH + alias + "/" + alias  + ".keystore";
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new FileInputStream(keyStorePath), DEFAULT_PASSWORD.toCharArray());
@@ -84,7 +84,7 @@ public class ClientSecurityUtils {
 
     public static PrivateKey getUserPrivateKeyFromKeyStore(String alias) {
         try {
-            String keyStorePath = KEYSTORE_PATH + alias + ".keystore";
+            String keyStorePath = KEYSTORE_PATH + alias + "/" + alias  + ".keystore";
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new FileInputStream(keyStorePath), DEFAULT_PASSWORD.toCharArray());

@@ -23,7 +23,7 @@ import server.utils.ServerSecurityUtils;
 
 public class UploadFileToWorkspaceHandler implements RouteHandler {
     private static final String TEMP_DIR = "data/temp_files";
-    private final String KEYSTORE_PATH = "server_keys/truststore.server";
+    private final String KEYSTORE_PATH = "server_keys/server.truststore";
     private static final Map<String, FileUploadSession> uploadSessions = new HashMap<>();
 
     public UploadFileToWorkspaceHandler() {
@@ -374,9 +374,8 @@ public class UploadFileToWorkspaceHandler implements RouteHandler {
 
 
             //TODO 
-            //TODO public key is wrong for now
             TrustStoreManager tsm = new TrustStoreManager(KEYSTORE_PATH);
-            PublicKey publicKey = tsm.getClientPublicKey();
+            PublicKey publicKey = tsm.getCertificate(user.getUserId()).getPublicKey();
             if (publicKey == null) {
                 return NetworkUtils.createErrorResponse(request, "Chave pública não encontrada");
             }

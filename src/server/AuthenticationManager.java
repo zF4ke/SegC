@@ -44,7 +44,7 @@ public class AuthenticationManager {
         if (this.getUser(userId) == null) {
             if (this.addUser(userId, password)) {
                 WorkspaceManager workspaceManager = WorkspaceManager.getInstance();
-                StatusCode status = workspaceManager.createWorkspace(userId, DEFAULT_WORKSPACE_NAME);
+                StatusCode status = workspaceManager.createWorkspace(userId, DEFAULT_WORKSPACE_NAME, password);
 
                 if (status == StatusCode.OK) {
                     return StatusCode.OK_NEW_USER;

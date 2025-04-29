@@ -2,7 +2,7 @@ package client;
 
 import server.models.*;
 import server.utils.NetworkUtils;
-import shared.FileSecurityUtils;
+//import shared.FileSecurityUtils;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -101,7 +101,7 @@ public class NetworkManager {
             try {
 
                 PrivateKey privateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(userId);
-                File signatureFile = FileSecurityUtils.createSignedFile(file, privateKey);
+                File signatureFile = ClientSecurityUtils.createSignedFile(file, privateKey);
                 StatusCode fileStatus = sendFileToServer(file,signatureFile.getPath(), workspaceId, in, out);
                 //new code starts 
                 
