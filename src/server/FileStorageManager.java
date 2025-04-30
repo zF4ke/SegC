@@ -6,6 +6,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import server.models.Workspace;
 
 /*
@@ -21,6 +26,9 @@ public class FileStorageManager {
     private static final String DATA_DIR_PATH = "data/";
     private static final String WORKSPACES_FILE_PATH = "data/workspaces.txt";
     private static final String WORKSPACES_DIR_PATH = "data/workspaces/";
+
+    private final ReadWriteLock metaLock = new ReentrantReadWriteLock();
+    private final ConcurrentMap<String, ReadWriteLock> wsLocks = new ConcurrentHashMap<>();
 
     /**
      * Create a new file storage manager.
@@ -57,6 +65,10 @@ public class FileStorageManager {
         return INSTANCE;
     }
 
+    private ReadWriteLock getWorkspaceLock(String workspaceId) {
+        return wsLocks.computeIfAbsent(workspaceId, k -> new ReentrantReadWriteLock());
+    }
+
     /**
      * Gets a workspace from the file.
      *
@@ -64,33 +76,38 @@ public class FileStorageManager {
      * @return the workspace, or null if the workspace does not exist
      */
     public Workspace getWorkspace(String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
+        metaLock.readLock().lock();
+        try {
+            MySharingServer.verifyWorkspacesMac();
 
-        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))){
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                String[] parts = line.split(":");
+            try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))) {
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] parts = line.split(":");
 
-                int NUM_PARTS = 3;
-                if (parts.length != NUM_PARTS) {
-                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
-                    continue;
+                    int NUM_PARTS = 3;
+                    if (parts.length != NUM_PARTS) {
+                        System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                        continue;
+                    }
+
+                    String id = parts[0];
+                    String ownerUsername = parts[1];
+                    List<String> members = Arrays.asList(parts[2].split(","));
+
+                    if (id.equals(workspaceId)) {
+                        return new Workspace(id, ownerUsername, members);
+                    }
                 }
 
-                String id = parts[0];
-                String ownerUsername = parts[1];
-                List<String> members = Arrays.asList(parts[2].split(","));
-
-                if (id.equals(workspaceId)) {
-                    return new Workspace(id, ownerUsername, members);
-                }
+            } catch (IOException e) {
+                System.err.println("[FILE STORAGE] Erro ao carregar workspaces: " + e.getMessage());
             }
 
-        } catch (IOException e) {
-            System.err.println("[FILE STORAGE] Erro ao carregar workspaces: " + e.getMessage());
+            return null;
+        } finally {
+            metaLock.readLock().unlock();
         }
-
-        return null;
     }
 
     /**
@@ -101,37 +118,42 @@ public class FileStorageManager {
      * @return true if the workspace was created, false otherwise
      */
     public boolean createWorkspace(String userId, String name) {
-        MySharingServer.verifyWorkspacesMac();
+        metaLock.writeLock().lock();
+        try {
+            MySharingServer.verifyWorkspacesMac();
 
-        String workspaceId = userId + "_" + name;
+            String workspaceId = userId + "_" + name;
 
-        if (this.getWorkspace(workspaceId) != null) {
-            System.err.println("[FILE STORAGE] Workspace já existe: " + workspaceId);
-            return false;
-        }
-
-        try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(WORKSPACES_FILE_PATH, true))) {
-            //creating the dir for the workspace
-            Files.createDirectory(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
-
-            //adding the workspace to the workspace.txt file
-            String newLine = workspaceId + ":" + userId + ":" + userId;
-            bufferedWriter.write(newLine);
-            bufferedWriter.newLine();
-        } catch (IOException e) {
-            // Remove dir if it was created
-            try {
-                Files.delete(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
-            } catch (IOException ex) {
-                System.out.println("[FILE STORAGE] Erro ao apagar workspace: " + ex.getMessage());
+            if (this.getWorkspace(workspaceId) != null) {
+                System.err.println("[FILE STORAGE] Workspace já existe: " + workspaceId);
+                return false;
             }
 
-            System.out.println("[FILE STORAGE] Erro ao criar workspace: " + e.getMessage());
-            return false;
-        }
+            try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(WORKSPACES_FILE_PATH, true))) {
+                //creating the dir for the workspace
+                Files.createDirectory(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
 
-        MySharingServer.updateWorkspacesMac();
-        return true;
+                //adding the workspace to the workspace.txt file
+                String newLine = workspaceId + ":" + userId + ":" + userId;
+                bufferedWriter.write(newLine);
+                bufferedWriter.newLine();
+            } catch (IOException e) {
+                // Remove dir if it was created
+                try {
+                    Files.delete(Paths.get(WORKSPACES_DIR_PATH + workspaceId));
+                } catch (IOException ex) {
+                    System.out.println("[FILE STORAGE] Erro ao apagar workspace: " + ex.getMessage());
+                }
+
+                System.out.println("[FILE STORAGE] Erro ao criar workspace: " + e.getMessage());
+                return false;
+            }
+
+            MySharingServer.updateWorkspacesMac();
+            return true;
+        } finally {
+            metaLock.writeLock().unlock();
+        }
     }
 
 
@@ -178,153 +200,74 @@ public class FileStorageManager {
      * @return true if the user was added, false otherwise
      */
     public boolean addUserToWorkspace(String workspaceId, String userId)  {
-        MySharingServer.verifyWorkspacesMac();
-
+        ReadWriteLock lock = getWorkspaceLock(workspaceId);
+        lock.writeLock().lock();
         try {
-            File file = new File(WORKSPACES_FILE_PATH);
-            Scanner scanner = new Scanner(file);
-            StringBuilder newContent = new StringBuilder();
-            boolean workspaceFound = false;
+            MySharingServer.verifyWorkspacesMac();
 
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                String[] parts = line.split(":");
+            try {
+                File file = new File(WORKSPACES_FILE_PATH);
+                Scanner scanner = new Scanner(file);
+                StringBuilder newContent = new StringBuilder();
+                boolean workspaceFound = false;
 
-                int NUM_PARTS = 3;
-                if (parts.length != NUM_PARTS) {
-                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
-                    continue;
-                }
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] parts = line.split(":");
 
-                String id = parts[0];
-                String ownerUsername = parts[1];
-                List<String> members = new ArrayList<>(Arrays.asList(parts[2].split(",")));
-
-                if (id.equals(workspaceId)) {
-                    workspaceFound = true;
-
-                    if (members.contains(userId)) {
-                        System.err.println("[FILE STORAGE] Usuário já é membro do workspace: " + userId);
-                        return false;
+                    int NUM_PARTS = 3;
+                    if (parts.length != NUM_PARTS) {
+                        System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                        continue;
                     }
 
-                    members.add(userId);
-                    newContent
-                            .append(id)
-                            .append(":")
-                            .append(ownerUsername)
-                            .append(":");
-                    for (String member : members) {
-                        newContent.append(member).append(",");
-                    }
-                    newContent.deleteCharAt(newContent.length() - 1);
-                } else {
-                    newContent.append(line);
-                }
+                    String id = parts[0];
+                    String ownerUsername = parts[1];
+                    List<String> members = new ArrayList<>(Arrays.asList(parts[2].split(",")));
 
-                newContent.append("\n");
-            }
+                    if (id.equals(workspaceId)) {
+                        workspaceFound = true;
 
-            if (!workspaceFound) {
-                System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
-                return false;
-            }
+                        if (members.contains(userId)) {
+                            System.err.println("[FILE STORAGE] Usuário já é membro do workspace: " + userId);
+                            return false;
+                        }
 
-            FileWriter fileWriter = new FileWriter(file);
-            fileWriter.write(newContent.toString());
-            fileWriter.close();
-
-            MySharingServer.updateWorkspacesMac();
-            return true;
-        } catch (IOException e) {
-            System.err.println("[FILE STORAGE] Erro ao adicionar usuário ao workspace: " + e.getMessage());
-            return false;
-        }
-    }
-
-    public boolean removeUserFromWorkspace(String workspaceId, String userId) {
-        MySharingServer.verifyWorkspacesMac();
-
-        try {
-            File file = new File(WORKSPACES_FILE_PATH);
-            Scanner scanner = new Scanner(file);
-            StringBuilder newContent = new StringBuilder();
-            boolean workspaceFound = false;
-
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                String[] parts = line.split(":");
-
-                int NUM_PARTS = 3;
-                if (parts.length != NUM_PARTS) {
-                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
-                    continue;
-                }
-
-                String id = parts[0];
-                String ownerUsername = parts[1];
-                List<String> members = new ArrayList<>(Arrays.asList(parts[2].split(",")));
-
-                if (id.equals(workspaceId)) {
-                    workspaceFound = true;
-
-                    if (!members.contains(userId)) {
-                        System.err.println("[FILE STORAGE] Usuário não é membro do workspace: " + userId);
-                        return false;
-                    }
-
-                    members.remove(userId);
-                    newContent
-                            .append(id)
-                            .append(":")
-                            .append(ownerUsername)
-                            .append(":");
-                    for (String member : members) {
-                        newContent.append(member).append(",");
-                    }
-                    if (!members.isEmpty()) {
+                        members.add(userId);
+                        newContent
+                                .append(id)
+                                .append(":")
+                                .append(ownerUsername)
+                                .append(":");
+                        for (String member : members) {
+                            newContent.append(member).append(",");
+                        }
                         newContent.deleteCharAt(newContent.length() - 1);
+                    } else {
+                        newContent.append(line);
                     }
-                } else {
-                    newContent.append(line);
+
+                    newContent.append("\n");
                 }
 
-                newContent.append("\n");
-            }
+                if (!workspaceFound) {
+                    System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+                    return false;
+                }
 
-            if (!workspaceFound) {
-                System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+                FileWriter fileWriter = new FileWriter(file);
+                fileWriter.write(newContent.toString());
+                fileWriter.close();
+
+                MySharingServer.updateWorkspacesMac();
+                return true;
+            } catch (IOException e) {
+                System.err.println("[FILE STORAGE] Erro ao adicionar usuário ao workspace: " + e.getMessage());
                 return false;
             }
-
-            FileWriter fileWriter = new FileWriter(file);
-            fileWriter.write(newContent.toString());
-            fileWriter.close();
-
-            MySharingServer.updateWorkspacesMac();
-            return true;
-        } catch (IOException e) {
-            System.err.println("[FILE STORAGE] Erro ao remover usuário do workspace: " + e.getMessage());
-            return false;
+        } finally {
+            lock.writeLock().unlock();
         }
-    }
-
-    /**
-     * Get the path of a workspace.
-     *
-     * @param workspaceId the workspace ID
-     * @return the path of the workspace
-     */
-    public String getWorkspacePath(String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
-
-        File workspaceDir = new File(WORKSPACES_DIR_PATH + workspaceId);
-        if (!workspaceDir.exists()) {
-            System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
-            return null;
-        }
-
-        return workspaceDir.getAbsolutePath();
     }
 
     /**
@@ -334,35 +277,41 @@ public class FileStorageManager {
      * @return an array of workspace IDs
      */
     public String[] listWorkspaceIds(String usernameId) {
-        MySharingServer.verifyWorkspacesMac();
+        metaLock.readLock().lock();
 
-        try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))) {
-            List<String> workspaceIds = new ArrayList<>();
+        try {
+            MySharingServer.verifyWorkspacesMac();
 
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                String[] parts = line.split(":");
+            try (Scanner scanner = new Scanner(new File(WORKSPACES_FILE_PATH))) {
+                List<String> workspaceIds = new ArrayList<>();
 
-                int NUM_PARTS = 3;
-                if (parts.length != NUM_PARTS) {
-                    System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
-                    continue;
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] parts = line.split(":");
+
+                    int NUM_PARTS = 3;
+                    if (parts.length != NUM_PARTS) {
+                        System.out.println("[FILE STORAGE] Erro ao ler workspace: Formato inválido");
+                        continue;
+                    }
+
+                    String id = parts[0];
+                    String ownerUsername = parts[1];
+                    List<String> members = Arrays.asList(parts[2].split(","));
+
+                    if (ownerUsername.equals(usernameId) || members.contains(usernameId)) {
+                        workspaceIds.add(id);
+                    }
                 }
 
-                String id = parts[0];
-                String ownerUsername = parts[1];
-                List<String> members = Arrays.asList(parts[2].split(","));
+                return workspaceIds.toArray(new String[0]);
+            } catch (IOException e) {
+                System.err.println("[FILE STORAGE] Erro ao listar workspaces: " + e.getMessage());
 
-                if (ownerUsername.equals(usernameId) || members.contains(usernameId)) {
-                    workspaceIds.add(id);
-                }
+                return new String[0];
             }
-
-            return workspaceIds.toArray(new String[0]);
-        } catch (IOException e) {
-            System.err.println("[FILE STORAGE] Erro ao listar workspaces: " + e.getMessage());
-
-            return new String[0];
+        } finally {
+            metaLock.readLock().unlock();
         }
     }
 
@@ -373,10 +322,17 @@ public class FileStorageManager {
      * @return an array of file names
      */
     public String[] listWorkspaceFiles(String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
+        ReadWriteLock lock = getWorkspaceLock(workspaceId);
+        lock.readLock().lock();
 
-        File workspaceDir = new File(WORKSPACES_DIR_PATH + workspaceId);
-        return workspaceDir.list();
+        try {
+            MySharingServer.verifyWorkspacesMac();
+
+            File workspaceDir = new File(WORKSPACES_DIR_PATH + workspaceId);
+            return workspaceDir.list();
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -388,27 +344,34 @@ public class FileStorageManager {
      * @return true if the file was uploaded, false otherwise
      */
     public boolean uploadFile(String workspaceId, File file, String fileName) {
-        MySharingServer.verifyWorkspacesMac();
+        ReadWriteLock lock = getWorkspaceLock(workspaceId);
+        lock.writeLock().lock();
 
         try {
-            // workspace path
-            Path workspacePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId);
-            if (!Files.exists(workspacePath)) {
-                System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+            MySharingServer.verifyWorkspacesMac();
+
+            try {
+                // workspace path
+                Path workspacePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId);
+                if (!Files.exists(workspacePath)) {
+                    System.err.println("[FILE STORAGE] Workspace não encontrado: " + workspaceId);
+                    return false;
+                }
+
+                // file path
+                Path filePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId + "/" + fileName);
+
+                // move file to workspace
+                Files.move(file.toPath(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                MySharingServer.updateWorkspacesMac();
+                return true;
+            } catch (IOException e) {
+                System.err.println("[FILE STORAGE] Erro ao fazer upload do arquivo: " + e.getMessage());
                 return false;
             }
-
-            // file path
-            Path filePath = Paths.get(WORKSPACES_DIR_PATH + workspaceId + "/" + fileName);
-
-            // move file to workspace
-            Files.move(file.toPath(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            MySharingServer.updateWorkspacesMac();
-            return true;
-        } catch (IOException e) {
-            System.err.println("[FILE STORAGE] Erro ao fazer upload do arquivo: " + e.getMessage());
-            return false;
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
@@ -438,14 +401,21 @@ public class FileStorageManager {
      * @return the file if it exists, null otherwise
      */
     public File getFile(String fileName, String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
+        ReadWriteLock lock = getWorkspaceLock(workspaceId);
+        lock.readLock().lock();
 
-        if (fileName == null || workspaceId == null) {
-            return null;
+        try {
+            MySharingServer.verifyWorkspacesMac();
+
+            if (fileName == null || workspaceId == null) {
+                return null;
+            }
+
+            String dir = WORKSPACES_DIR_PATH + workspaceId;
+            return new File(dir, fileName);
+        } finally {
+            lock.readLock().unlock();
         }
-
-        String dir = WORKSPACES_DIR_PATH + workspaceId;
-        return new File(dir, fileName);
     }
 
     /**
@@ -456,15 +426,22 @@ public class FileStorageManager {
      * @return true if the file was deleted, false otherwise
      */
     public boolean deleteFile(String fileName, String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
+        ReadWriteLock lock = getWorkspaceLock(workspaceId);
+        lock.writeLock().lock();
 
-        File file = getFile(fileName, workspaceId);
-        if (file == null) {
-            return false;
+        try {
+            MySharingServer.verifyWorkspacesMac();
+
+            File file = getFile(fileName, workspaceId);
+            if (file == null) {
+                return false;
+            }
+
+            MySharingServer.updateWorkspacesMac();
+            return file.delete();
+        } finally {
+            lock.writeLock().unlock();
         }
-
-        MySharingServer.updateWorkspacesMac();
-        return file.delete();
     }
 
 
@@ -482,27 +459,34 @@ public class FileStorageManager {
     }
 
     public File getSignatureFile(String fileName, String workspaceId) {
-        MySharingServer.verifyWorkspacesMac();
+        ReadWriteLock lock = getWorkspaceLock(workspaceId);
+        lock.readLock().lock();
 
-        String signatureFileName = fileName + ".signed";
+        try {
+            MySharingServer.verifyWorkspacesMac();
 
-        File baseFile = getFile(signatureFileName, workspaceId);
-        if (baseFile == null) {
+            String signatureFileName = fileName + ".signed";
+
+            File baseFile = getFile(signatureFileName, workspaceId);
+            if (baseFile == null) {
+                return null;
+            }
+
+            File directory = baseFile.getParentFile();
+            if (directory == null || !directory.isDirectory()) {
+                return null;
+            }
+
+            String baseName = baseFile.getName();
+
+            File[] matches = directory.listFiles((dir, name) -> name.startsWith(baseName));
+            if (matches != null && matches.length > 0) {
+                return matches[0];
+            }
+
             return null;
+        } finally {
+            lock.readLock().unlock();
         }
-    
-        File directory = baseFile.getParentFile();
-        if (directory == null || !directory.isDirectory()) {
-            return null;
-        }
-    
-        String baseName = baseFile.getName(); 
-    
-        File[] matches = directory.listFiles((dir, name) -> name.startsWith(baseName));
-        if (matches != null && matches.length > 0) {
-            return matches[0]; 
-        }
-    
-        return null;
     }
 }

@@ -8,10 +8,13 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.cert.Certificate;
 import java.util.Base64;
 
 
@@ -90,23 +93,31 @@ public class NetworkManager {
                 // encrypt the file with the new user public key
                 // save the file as <ws>.key.<newuserid>
                 //System.out.println("Resposta: " + statusKey);
-                PrivateKey ownerPrivateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(ownerId);
-                String keyData = Files.readString(file.toPath());
-                String[] keyParts = keyData.split(":");
-                byte[] wrappedAesKey = Base64.getDecoder().decode(keyParts[0]);
-                byte[] salt = Base64.getDecoder().decode(keyParts[1]);
 
-                // decrypt the key with the owner private key
+                String keyData = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
+                String[] parts = keyData.split(":", 2);
+                if (parts.length != 2) {
+                    throw new IllegalArgumentException("Invalid key file format");
+                }
+
+                // decode wrapped AES key and salt: <wrappedKey>:<salt>
+                byte[] wrappedAesKey = Base64.getDecoder().decode(parts[0]);
+                byte[] salt = Base64.getDecoder().decode(parts[1]);
+
+                PrivateKey ownerPrivateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(ownerId);
+                System.out.println("ownerId: " + ownerId);
+
+                // Step 3: Unwrap the AES key using RSA/OAEP
                 Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
                 rsaCipher.init(Cipher.DECRYPT_MODE, ownerPrivateKey);
-
-                byte[] aesKeyBytes = rsaCipher.doFinal(wrappedAesKey);
-
-                SecretKey aesKey = new SecretKeySpec(aesKeyBytes, "AES");
+                byte[] aesBytes = rsaCipher.doFinal(wrappedAesKey);
+                SecretKey aesKey = new SecretKeySpec(aesBytes, "AES");
 
                 // encrypt the key with the new user public key
                 // get the new user public key
-                PublicKey newUserPublicKey = ClientSecurityUtils.getUserPublicKeyFromKeyStore(user);
+                Certificate cert = ClientSecurityUtils.getUserCertificateFromTrustStore(ownerId, user);
+                PublicKey newUserPublicKey = cert.getPublicKey();
+                System.out.println("user: " + user);
 
                 // encrypt the key with the new user public key
                 Cipher rsaCipher2 = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
@@ -116,14 +127,16 @@ public class NetworkManager {
                 // create the new key file
                 String newKeyData = Base64.getEncoder().encodeToString(wrappedAesKey2) + ":" + Base64.getEncoder().encodeToString(salt);
 
+                String encodedSalt = Base64.getEncoder().encodeToString(salt);
+                String encodedKey  = Base64.getEncoder().encodeToString(wrappedAesKey2);
+                String keyDataNew     = encodedKey + ":" + encodedSalt;
+
                 // save the new key file
-                File newKeyFile = new File(workspaceId + ".key." + user);
-                try (FileOutputStream fos = new FileOutputStream(newKeyFile)) {
-                    fos.write(newKeyData.getBytes());
-                }
+                String keyFileName = workspaceId + ".key." + user;
+                Files.write(Path.of(keyFileName), keyDataNew.getBytes(StandardCharsets.UTF_8));
 
                 // send key to the server
-                fileId = sendKeyToServer(newKeyFile.getPath(), workspaceId, in, out);
+                fileId = sendKeyToServer(keyFileName, workspaceId, in, out);
 
                 if (fileId == null) {
                     System.out.println("Resposta: Erro ao adicionar o utilizador ao workspace");
@@ -152,7 +165,7 @@ public class NetworkManager {
                 Files.deleteIfExists(Paths.get(file.getPath()));
 
                 // delete the new key file
-                Files.deleteIfExists(Paths.get(newKeyFile.getPath()));
+                Files.deleteIfExists(Paths.get(keyFileName));
             } catch (Exception e) {
                 System.err.println("[CLIENT] Erro ao processar resposta: " + e.getMessage());
             }
@@ -621,7 +634,9 @@ public class NetworkManager {
 
 
         String userId = signatureFileName.split("\\.")[3];
-        PublicKey publicKey = ClientSecurityUtils.getUserPublicKeyFromKeyStore(userId);
+        //PublicKey publicKey = ClientSecurityUtils.getUserPublicKeyFromKeyStore(userId);
+        Certificate cert = ClientSecurityUtils.getUserCertificateFromTrustStore(user, userId);
+        PublicKey publicKey = cert.getPublicKey();
 
 
         if (ClientSecurityUtils.verifySignedFile(fileName, signatureFileName, publicKey)) {
@@ -646,7 +661,7 @@ public class NetworkManager {
             return statusKey;
         }
 
-        ClientSecurityUtils.decryptFile(fileName, new File(fileKeyName), userId);
+        ClientSecurityUtils.decryptFile(fileName, new File(fileKeyName), user);
 
         // remove the key file
         if (!new File(fileKeyName).delete()) {
