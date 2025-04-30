@@ -437,6 +437,11 @@ public class FileStorageManager {
                 return false;
             }
 
+            File signatureFile = getSignatureFile(fileName, workspaceId);
+            if (signatureFile != null) {
+                signatureFile.delete();
+            }
+
             MySharingServer.updateWorkspacesMac();
             return file.delete();
         } finally {

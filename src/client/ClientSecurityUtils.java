@@ -285,7 +285,7 @@ public class ClientSecurityUtils {
      */
     public static String decryptFile(String encryptedFilePath, File keyFile, String userId) {
         try {
-            System.out.println(keyFile);
+            //System.out.println(keyFile);
 
             // Step 1: Read and parse key file (format: <wrappedKey>:<salt>)
             String keyData = new String(Files.readAllBytes(keyFile.toPath()), StandardCharsets.UTF_8).trim();

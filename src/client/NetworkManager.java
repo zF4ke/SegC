@@ -105,7 +105,7 @@ public class NetworkManager {
                 byte[] salt = Base64.getDecoder().decode(parts[1]);
 
                 PrivateKey ownerPrivateKey = ClientSecurityUtils.getUserPrivateKeyFromKeyStore(ownerId);
-                System.out.println("ownerId: " + ownerId);
+                //System.out.println("ownerId: " + ownerId);
 
                 // Step 3: Unwrap the AES key using RSA/OAEP
                 Cipher rsaCipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
@@ -117,7 +117,7 @@ public class NetworkManager {
                 // get the new user public key
                 Certificate cert = ClientSecurityUtils.getUserCertificateFromTrustStore(ownerId, user);
                 PublicKey newUserPublicKey = cert.getPublicKey();
-                System.out.println("user: " + user);
+                //System.out.println("user: " + user);
 
                 // encrypt the key with the new user public key
                 Cipher rsaCipher2 = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
@@ -642,7 +642,7 @@ public class NetworkManager {
         if (ClientSecurityUtils.verifySignedFile(fileName, signatureFileName, publicKey)) {
             //System.out.println("[CLIENT] Ficheiro recebido com sucesso e verificado!");
         } else {
-            //System.err.println("[CLIENT] Ficheiro recebido mas não verificado!");
+            System.err.println("[CLIENT] Verificação do ficheiro falhou!");
             Files.deleteIfExists(Paths.get(fileName));
             Files.deleteIfExists(Paths.get(signatureFileName));
             return StatusCode.NOK;

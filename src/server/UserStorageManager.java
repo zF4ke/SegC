@@ -12,6 +12,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Scanner;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * A class to manage the users file.
@@ -19,6 +21,8 @@ import java.util.Scanner;
 public class UserStorageManager {
     private static UserStorageManager INSTANCE;
     private static final String USERS_FILE_PATH = "data/users.txt";
+
+    private final ReadWriteLock metaLock = new ReentrantReadWriteLock();
 
     /**
      * Create a new user storage manager.
@@ -55,31 +59,36 @@ public class UserStorageManager {
      * @return the user, or null if the user does not exist
      */
     public User getUser(String userId) {
-        MySharingServer.verifyUsersMac();
+        metaLock.readLock().lock();
+        try {
+            MySharingServer.verifyUsersMac();
 
-        try (Scanner scanner = new Scanner(new File(USERS_FILE_PATH))) {
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                String[] parts = line.split(":");
+            try (Scanner scanner = new Scanner(new File(USERS_FILE_PATH))) {
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] parts = line.split(":");
 
-                if (parts.length != 3) {
-                    System.err.println("[USER STORAGE] Formato inválido: " + line);
-                    continue;
+                    if (parts.length != 3) {
+                        System.err.println("[USER STORAGE] Formato inválido: " + line);
+                        continue;
+                    }
+
+                    String username = parts[0];
+                    String hash = parts[1];
+                    String salt = parts[2];
+
+                    if (username.equals(userId)) {
+                        return new User(username, hash, salt);
+                    }
                 }
-
-                String username = parts[0];
-                String hash = parts[1];
-                String salt = parts[2];
-
-                if (username.equals(userId)) {
-                    return new User(username, hash, salt);
-                }
+            } catch (IOException e) {
+                System.err.println("[USER STORAGE] Erro ao carregar usuários: " + e.getMessage());
             }
-        } catch (IOException e) {
-            System.err.println("[USER STORAGE] Erro ao carregar usuários: " + e.getMessage());
-        }
 
-        return null;
+            return null;
+        } finally {
+            metaLock.readLock().unlock();
+        }
     }
 
     /**
@@ -90,25 +99,32 @@ public class UserStorageManager {
      * @return true if the user was added, false otherwise
      */
     public boolean addUser(String user, String password) {
-        MySharingServer.verifyUsersMac();
-
-        if (this.getUser(user) != null) {
-            System.err.println("[USER STORAGE] Usuário já existe: " + user);
-            return false;
-        }
+        metaLock.writeLock().lock();
 
         try {
-            String securePassword = ServerSecurityUtils.genSecurePassword(user, password);
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE_PATH, true))) {
-                writer.write(securePassword);
-                writer.newLine();
+
+            MySharingServer.verifyUsersMac();
+
+            if (this.getUser(user) != null) {
+                System.err.println("[USER STORAGE] Usuário já existe: " + user);
+                return false;
             }
 
-            MySharingServer.updateUsersMac();
-            return true;
-        } catch (Exception e) {
-            System.err.println("[USER STORAGE] Erro ao adicionar utilizador: " + e.getMessage());
-            return false;
+            try {
+                String securePassword = ServerSecurityUtils.genSecurePassword(user, password);
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE_PATH, true))) {
+                    writer.write(securePassword);
+                    writer.newLine();
+                }
+
+                MySharingServer.updateUsersMac();
+                return true;
+            } catch (Exception e) {
+                System.err.println("[USER STORAGE] Erro ao adicionar utilizador: " + e.getMessage());
+                return false;
+            }
+        } finally {
+            metaLock.writeLock().unlock();
         }
     }
 
@@ -119,45 +135,51 @@ public class UserStorageManager {
      * @return true if the user was removed, false otherwise
      */
     public boolean removeUser(String user) {
-        MySharingServer.verifyUsersMac();
+        metaLock.writeLock().lock();
+        try {
 
-        File inputFile = new File(USERS_FILE_PATH);
-        File tempFile = new File(USERS_FILE_PATH + ".tmp");
+            MySharingServer.verifyUsersMac();
 
-        try (Scanner scanner = new Scanner(inputFile);
-             BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile))) {
+            File inputFile = new File(USERS_FILE_PATH);
+            File tempFile = new File(USERS_FILE_PATH + ".tmp");
 
-            boolean userFound = false;
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-                String[] parts = line.split(":");
+            try (Scanner scanner = new Scanner(inputFile);
+                 BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile))) {
 
-                // Skip the user we want to remove
-                if (parts.length >= 1 && parts[0].equals(user)) {
-                    userFound = true;
-                    continue;
+                boolean userFound = false;
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    String[] parts = line.split(":");
+
+                    // Skip the user we want to remove
+                    if (parts.length >= 1 && parts[0].equals(user)) {
+                        userFound = true;
+                        continue;
+                    }
+
+                    writer.write(line);
+                    writer.newLine();
                 }
 
-                writer.write(line);
-                writer.newLine();
-            }
+                if (!userFound) {
+                    tempFile.delete();
+                    // User not found, didnt change file so no need to update MAC
+                    return true;
+                }
 
-            if (!userFound) {
-                tempFile.delete();
-                // User not found, didnt change file so no need to update MAC
+                // Replace original file with the new one
+                if (!tempFile.renameTo(inputFile)) {
+                    Files.move(tempFile.toPath(), inputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+
+                MySharingServer.updateUsersMac();
                 return true;
+            } catch (IOException e) {
+                System.err.println("[USER STORAGE] Erro ao remover usuário: " + e.getMessage());
+                return false;
             }
-
-            // Replace original file with the new one
-            if (!tempFile.renameTo(inputFile)) {
-                Files.move(tempFile.toPath(), inputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            MySharingServer.updateUsersMac();
-            return true;
-        } catch (IOException e) {
-            System.err.println("[USER STORAGE] Erro ao remover usuário: " + e.getMessage());
-            return false;
+        } finally {
+            metaLock.writeLock().unlock();
         }
     }
 }
