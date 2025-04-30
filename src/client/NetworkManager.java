@@ -219,15 +219,23 @@ public class NetworkManager {
                 //...
 
                 String encryptedFile = ClientSecurityUtils.encryptFile(file, keyFile, userId);
-
                 File signatureFile = ClientSecurityUtils.createSignedFile(encryptedFile, userId, privateKey);
-                StatusCode fileStatus = sendFileToServerWithSignature(file, signatureFile.getPath(), workspaceId, in, out);
+
+                StatusCode fileStatus = sendFileToServerWithSignature(file, encryptedFile, signatureFile.getPath(), workspaceId, in, out);
                 if (!signatureFile.delete()) {
                     System.err.println("[CLIENT] Erro ao apagar o ficheiro de assinatura: " + signatureFile.getPath());
                 }
-                //new code starts 
-                
-                //new code endds
+
+                // remove encrypted file
+                assert encryptedFile != null;
+                if (!new File(encryptedFile).delete()) {
+                    System.err.println("[CLIENT] Erro ao apagar o ficheiro encriptado: " + encryptedFile);
+                }
+
+                // remove key file
+                if (keyFile != null && !keyFile.delete()) {
+                    System.err.println("[CLIENT] Erro ao apagar o ficheiro de chave: " + keyFile.getPath());
+                }
 
                 //System.out.print("\t" + file + ": " + status);
                 if (!first) {
@@ -617,9 +625,9 @@ public class NetworkManager {
 
 
         if (ClientSecurityUtils.verifySignedFile(fileName, signatureFileName, publicKey)) {
-            System.out.println("[CLIENT] Ficheiro recebido com sucesso e verificado!");
+            //System.out.println("[CLIENT] Ficheiro recebido com sucesso e verificado!");
         } else {
-            System.err.println("[CLIENT] Ficheiro recebido mas não verificado!");
+            //System.err.println("[CLIENT] Ficheiro recebido mas não verificado!");
             Files.deleteIfExists(Paths.get(fileName));
             Files.deleteIfExists(Paths.get(signatureFileName));
             return StatusCode.NOK;
@@ -656,7 +664,7 @@ public class NetworkManager {
      * @param in the input stream
      * @param out the output stream
      */
-    private static StatusCode sendFileToServerWithSignature(String filePath,String signatureFilePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
+    private static StatusCode sendFileToServerWithSignature(String fileName, String filePath,String signatureFilePath, String workspaceId, DataInputStream in, DataOutputStream out) throws IOException {
         File file = new File(filePath);
         File signatureFile = new File(signatureFilePath);
         if (!file.exists()) {
@@ -674,7 +682,7 @@ public class NetworkManager {
         BodyJSON initBody = new BodyJSON();
         initBody.put("action", "init");
         initBody.put("workspaceId", workspaceId);
-        initBody.put("fileName", file.getName());
+        initBody.put("fileName", fileName);
         initBody.put("size", String.valueOf(file.length()));
 
         int chunkSize = 1024 * 64; // 64KB chunks

@@ -142,7 +142,9 @@ public class ClientSecurityUtils {
             byte[] signedBytes = signature.sign();
 
             // Create the signature file
-            Path signaturePath = Paths.get(filePath + ".signed." + userID);
+            String nameWithoutEnc = filePath.substring(0, filePath.lastIndexOf("."));
+            String signatureFileName = nameWithoutEnc + ".signed." + userID;
+            Path signaturePath = Paths.get(signatureFileName);
             Files.write(signaturePath, signedBytes);
 
             return signaturePath.toFile();
@@ -248,14 +250,10 @@ public class ClientSecurityUtils {
             aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
 
             // Step 5: Create output stream & write IV + salt first
-            // move original file to backup
-            String backupPath = filePath + ".bak";
-            Files.move(Paths.get(filePath), Paths.get(backupPath), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            //String encryptedPath = filePath + ".enc";
-            String encryptedPath = filePath;
+            String encryptedPath = filePath + ".enc";
             try (FileOutputStream fos = new FileOutputStream(encryptedPath);
                  CipherOutputStream cos = new CipherOutputStream(fos, aesCipher);
-                 FileInputStream fis = new FileInputStream(backupPath)) {
+                 FileInputStream fis = new FileInputStream(filePath)) {
 
                 fos.write(iv);    // Write IV first
                 fos.write(salt);  // Then write salt
@@ -267,28 +265,6 @@ public class ClientSecurityUtils {
                 }
             }
 
-            // remove the backup file
-            Files.delete(Paths.get(backupPath));
-
-            // print encrypted file content
-//            byte[] encryptedFileBytes = Files.readAllBytes(Paths.get(encryptedPath));
-//            String base64EncodedBytes = Base64.getEncoder().encodeToString(encryptedFileBytes);
-//            System.out.println("Base64 encoded encrypted file length: " + base64EncodedBytes.length());
-//            System.out.println("Encrypted file size: " + encryptedFileBytes.length);
-//
-//            // test: decrypt the file using decryptFile method
-//             String decryptedPath = decryptFile(encryptedPath, keyFile, userId);
-//            System.out.println("[CLIENT] File decrypted successfully to: " + decryptedPath);
-//            // test: verify the signature of the decrypted file
-//            boolean isVerified = verifySignedFile(decryptedPath, decryptedPath + ".signed." + userId, getUserPublicKeyFromKeyStore(userId));
-//            System.out.println("[CLIENT] Signature verification result: " + isVerified);
-//            // print the decrypted file content
-//            byte[] decryptedFileBytes = Files.readAllBytes(Paths.get(decryptedPath));
-//            String base64EncodedDecryptedBytes = Base64.getEncoder().encodeToString(decryptedFileBytes);
-//            System.out.println("Base64 encoded decrypted file length: " + base64EncodedDecryptedBytes.length());
-//            System.out.println("Decrypted file size: " + decryptedFileBytes.length);
-//
-//            System.out.println("[CLIENT] File encrypted with AES and saved to: " + encryptedPath);
             return encryptedPath;
 
         } catch (Exception e) {
